@@ -11,3 +11,175 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum Role {
+  USER
+  ADMIN
+}
+
+/// Federated identity providers. Credentials sign-in is not listed: it is the
+/// absence of an OAuthAccount plus a non-null passwordHash.
+enum AuthProvider {
+  GOOGLE
+}
+
+model User {
+  Id           String   @id @default(cuid())
+  FName        String
+  LName        String
+
+  Email        String   @unique
+  passwordHash String?
+
+  userName     String?  @unique
+  AvatarUrl    String?
+  Role         Role     @default(USER)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  emailVerifiedAt DateTime?
+
+  plans         Plan[]
+  actuals       Actual[]
+  categories    Category[]
+  periodLocks   PeriodLock[]
+  importBatches ImportBatch[]
+
+  passwordResets     PasswordReset?
+  emailVerifications EmailVerification?
+  oauthAccounts      OAuthAccount[]
+
+  @@map("users")
+}
+
+model OAuthAccount {
+  Id       String       @id @default(cuid())
+  userId   String
+
+  provider AuthProvider
+  providerAccountId String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [Id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model PasswordReset {
+  Id        String   @id @default(cuid())
+  userId    String   @unique
+
+  tokenHash String   @unique
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [Id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("password_resets")
+}
+
+model EmailVerification {
+  Id        String   @id @default(cuid())
+  userId    String   @unique
+
+  tokenHash String   @unique
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [Id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("email_verifications")
+}
+
+model Category {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user    User     @relation(fields: [userId], references: [Id], onDelete: Cascade)
+  plans   Plan[]
+  actuals Actual[]
+
+  @@unique([userId, name])
+  @@unique([id, userId])
+  @@index([userId, archivedAt])
+  @@map("categories")
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  userId      String
+  categoryId  String
+  periodMonth DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [Id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId, userId], references: [id, userId], onDelete: Restrict)
+
+  @@unique([userId, categoryId, periodMonth]) 
+  @@index([userId, periodMonth])
+  @@map("plans")
+}
+
+model Actual {
+  id            String       @id @default(cuid())
+  userId        String
+  categoryId    String
+  periodMonth   DateTime     @db.Date
+  amount        Decimal      @db.Decimal(14, 2)
+  note          String?
+  importBatchId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [Id], onDelete: Cascade)
+  category    Category     @relation(fields: [categoryId, userId], references: [id, userId], onDelete: Restrict)
+  importBatch ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, periodMonth, categoryId])
+  @@index([importBatchId])
+  @@map("actuals")
+}
+
+model PeriodLock {
+  id          String   @id @default(cuid())
+  userId      String
+  periodMonth DateTime @db.Date
+  lockedAt    DateTime @default(now())
+  note        String?
+
+  user User @relation(fields: [userId], references: [Id], onDelete: Cascade)
+
+  @@unique([userId, periodMonth])
+  @@map("period_locks")
+}
+
+model ImportBatch {
+  id           String   @id @default(cuid())
+  userId       String
+  filename     String
+  rowsAccepted Int
+  rowsRejected Int
+  createdAt    DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [Id], onDelete: Cascade)
+  actuals Actual[]
+
+  @@index([userId, createdAt])
+  @@map("import_batches")
+}

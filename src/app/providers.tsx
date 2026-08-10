@@ -1,37 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { SessionProvider } from "next-auth/react";
+import type { Session } from "next-auth";
 import { ThemeProvider } from "next-themes";
-import { QueryClient } from "@tanstack/react-query";
-import { PersistQueryClientProvider, type Persister } from "@tanstack/react-query-persist-client";
+import { SessionProvider } from "next-auth/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-
-const CACHE_KEY = "planwise:query-cache";
-
-const localStoragePersister: Persister = {
-  persistClient: async (client) => {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(client));
-  },
-  restoreClient: async () => {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      return raw ? JSON.parse(raw) : undefined;
-    } catch {
-      return undefined;
-    }
-  },
-  removeClient: async () => {
-    localStorage.removeItem(CACHE_KEY);
-  },
-};
 
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        gcTime: 1000 * 60 * 60 * 24,
         staleTime: 1000 * 60 * 5,
         retry: 1,
       },
@@ -42,10 +22,10 @@ function makeQueryClient() {
 export function Providers({
   children,
   session,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-  session?: Parameters<typeof SessionProvider>[0]["session"];
-}) {
+  session?: Session | null;
+}>) {
   const [queryClient] = useState(makeQueryClient);
 
   return (
@@ -56,16 +36,9 @@ export function Providers({
       disableTransitionOnChange
     >
       <SessionProvider session={session}>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{
-            persister: localStoragePersister,
-            maxAge: 1000 * 60 * 60 * 24,
-            buster: "v1",
-          }}
-        >
+        <QueryClientProvider client={queryClient}>
           <TooltipProvider>{children}</TooltipProvider>
-        </PersistQueryClientProvider>
+        </QueryClientProvider>
       </SessionProvider>
     </ThemeProvider>
   );
