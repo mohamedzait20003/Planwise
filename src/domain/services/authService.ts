@@ -10,27 +10,19 @@ import {
   InvalidTokenError,
   ValidationError,
 } from "../decorators/global";
-import { userRepository, UserRepository } from "../repositories/userRepository";
-import {
-  tokenRepository,
-  TokenRepository,
-} from "../repositories/tokenRepository";
+import { MailServiceProvider, MailService } from "./mailService";
+import { VerifyEmailMail, ResetPasswordMail } from "../mails/authMails";
 import type { UserModel } from "../models/userModel";
 import { AuthProvider } from "../../../generated/prisma/client";
+import { UserRepositoryProvider, UserRepository } from "../repositories/userRepository";
+import { TokenRepositoryProvider, TokenRepository } from "../repositories/tokenRepository";
+
+
 
 const BCRYPT_ROUNDS = 12;
 
 /** A bcrypt hash of a value nobody knows, used to keep timing uniform. */
 const DUMMY_HASH = "$2a$12$C6UzMDM.H6dfI/f/IKcEe.yqDMzHNwEmqA5RGeBaqiKUcMwzeIYbq";
-
-/**
- * Delivery is not wired up yet — this logs the link so the flows stay testable
- * end to end. Replace the body with a real transport; no caller changes.
- */
-function deliverLink(kind: string, email: string, token: string): void {
-  const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-  console.info(`[auth] ${kind} for ${email}: ${base}/auth/${kind}?token=${token}`);
-}
 
 /**
  * Business rules for the auth flows.
@@ -42,8 +34,9 @@ function deliverLink(kind: string, email: string, token: string): void {
 @Service({ name: "AuthService" })
 export class AuthService {
   constructor(
-    private readonly users: UserRepository = userRepository.get(),
-    private readonly tokens: TokenRepository = tokenRepository.get()
+    private readonly users: UserRepository = UserRepositoryProvider.get(),
+    private readonly tokens: TokenRepository = TokenRepositoryProvider.get(),
+    private readonly mail: MailService = MailServiceProvider.get()
   ) {}
 
   /**
@@ -73,7 +66,8 @@ export class AuthService {
     });
 
     const { raw } = await this.tokens.issueEmailVerification(user.Id);
-    deliverLink("email-verify", user.Email, raw);
+    // Quietly: the account exists either way, and signing in re-sends the link.
+    await this.mail.sendQuietly(new VerifyEmailMail(user.Email, user.FName, raw));
 
     return user;
   }
@@ -100,7 +94,9 @@ export class AuthService {
 
     if (!user.isVerified) {
       const { raw } = await this.tokens.issueEmailVerification(user.Id);
-      deliverLink("email-verify", user.Email, raw);
+      await this.mail.sendQuietly(
+        new VerifyEmailMail(user.Email, user.FName, raw)
+      );
       throw new EmailNotVerifiedError(
         "Your email is not verified. We have sent a new confirmation link."
       );
@@ -185,7 +181,9 @@ export class AuthService {
     if (!user?.hasPassword) return;
 
     const { raw } = await this.tokens.issuePasswordReset(user.Id);
-    deliverLink("pass-reset", user.Email, raw);
+    // Not quietly: if this fails the user is stranded with no way to recover,
+    // so the error must surface rather than be swallowed into a 200.
+    await this.mail.send(new ResetPasswordMail(user.Email, user.FName, raw));
   }
 
   @Transactional()
@@ -200,4 +198,4 @@ export class AuthService {
   }
 }
 
-export const authService = provide("AuthService", () => new AuthService());
+export const AuthServiceProvider = provide("AuthService", () => new AuthService());

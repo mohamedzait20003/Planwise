@@ -71,7 +71,7 @@ export class UserRepository {
   }
 }
 
-export const userRepository = provide(
+export const UserRepositoryProvider = provide(
   "UserRepository",
   () => new UserRepository()
 );

@@ -11,11 +11,11 @@ import "server-only";
  *
  * A `Provider` adds exactly that seam and nothing else:
  *
- *   export const userRepository = provide("UserRepository", () => new UserRepository());
- *   export const authService = provide("AuthService", () => new AuthService());
+ *   export const UserRepositoryProvider = provide("UserRepository", () => new UserRepository());
+ *   export const AuthServiceProvider = provide("AuthService", () => new AuthService());
  *
  *   // in a test
- *   authService.overrideWith(fakeAuthService);
+ *   AuthServiceProvider.overrideWith(fakeAuthService);
  *   afterEach(() => resetProviders());
  *
  * Construction is lazy, so importing a module does not open a database

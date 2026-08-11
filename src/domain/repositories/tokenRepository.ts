@@ -1,10 +1,11 @@
 import "server-only";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
 
+/** Returned to the caller so it can be mailed. Only the hash is persisted. */
 export type IssuedToken = {
   raw: string;
   expiresAt: Date;
@@ -12,7 +13,12 @@ export type IssuedToken = {
 
 const TOKEN_BYTES = 32;
 
-export function hashToken(raw: string): string {
+// Module-private: nothing outside this file hashes or mints a token, and
+// exporting them invited a second, subtly different implementation elsewhere.
+// (`tokensMatch` was removed outright — it had no callers. Lookup is by the
+// unique `tokenHash` column, so the database does the comparison and there is
+// nothing to compare in constant time here.)
+function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
@@ -23,12 +29,6 @@ function newToken(ttlMinutes: number): IssuedToken & { hash: string } {
     hash: hashToken(raw),
     expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
   };
-}
-
-export function tokensMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 @Repository({ name: "TokenRepository" })
@@ -86,7 +86,7 @@ export class TokenRepository {
   }
 }
 
-export const tokenRepository = provide(
+export const TokenRepositoryProvider = provide(
   "TokenRepository",
   () => new TokenRepository()
 );

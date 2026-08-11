@@ -29,18 +29,26 @@ import { resolveAll, type Provider } from "./provider";
  * The functional equivalent is composition: each concern is a higher-order
  * function, and they stack in the same top-to-bottom read order.
  *
- *   export const POST = Endpoint(
- *     Auth(Role.ADMIN),
- *     Body(parseSignUp),
- *     async ({ body, user }) => authService.signUp(body),
+ *   export const POST = Endpoint<SignUpDto, Deps>(
+ *     Auth(Role.ADMIN),            // 401/403 before anything else runs
+ *     Body(signUpDto),             // zod schema in, ctx.body typed out
+ *     Require({ authService }),    // providers resolved onto ctx.deps
+ *     async ({ body, deps }) => ({
+ *       message: "Account created",
+ *       data: await deps.authService.signUp(body),
+ *     }),
  *   );
  *
- * Note there is no `POST()` step: the App Router derives the HTTP method from
- * the export name, so a decorator naming the method again could only ever
+ * Steps run in the order written and may abort by throwing; the last argument
+ * is always the handler. There is no `POST()` step — the App Router derives the
+ * HTTP method from the export name, so a marker naming it again could only ever
  * disagree with it.
-*/
+ *
+ * Reading order below: context shape, response envelope, error mapping, the
+ * steps, then `Endpoint` itself.
+ */
 
-/* context */
+/* ------------------------------------------------------------ request context */
 
 export type AuthUser = {
     id: string;
@@ -103,7 +111,7 @@ export type Handler<Body, Deps> = (
     ctx: Ctx<Body, Deps>
 ) => HandlerReturn | Promise<HandlerReturn>;
 
-/* HTTP-layer errors */
+/*  HTTP-layer errors */
 
 export class HttpError extends DomainError {
     constructor(
@@ -137,7 +145,7 @@ export class ForbiddenError extends HttpError {
  * Maps a thrown error to an HTTP status.
  *
  * Register app-specific errors here rather than at the throw site, e.g.
- * `mapStatus(PeriodLockedError, 423)` once that error exists.
+ * `mapStatus(MyError, 409)`. The domain errors below are already registered.
 */
 const STATUS = new Map<ErrorClass, number>([
     [ValidationError, 400],
@@ -222,7 +230,7 @@ export function Auth(...roles: string[]): Step {
 /**
  * Declares the services this endpoint uses and resolves them onto `ctx.deps`.
  *
- *   Require({ authService })
+ *   Require({ authService: AuthServiceProvider })
  *   async ({ body, deps }) => deps.authService.signUp(body)
  *
  * Reaching for the module singleton directly would also work — the reason to
@@ -270,7 +278,7 @@ export function Body<T>(schema: ZodType<T>): Step {
     };
 }
 
-/* Endpoint */
+/* ---------------------------------------------------------------- Endpoint */
 
 type RouteContext = { params?: Promise<Record<string, string | string[]>> };
 
