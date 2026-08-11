@@ -287,7 +287,7 @@ export function Nav() {
                     size="sm"
                     className="rounded-full"
                     nativeButton={false}
-                    render={<Link href="/auth/login" />}
+                    render={<Link href="/auth/sign-in" />}
                   >
                     Sign in
                   </Button>
@@ -295,7 +295,7 @@ export function Nav() {
                     size="sm"
                     className="rounded-full shadow-sm shadow-primary/25"
                     nativeButton={false}
-                    render={<Link href="/auth/register" />}
+                    render={<Link href="/auth/sign-up" />}
                   >
                     Get started
                   </Button>
@@ -351,14 +351,14 @@ export function Nav() {
                       variant="outline"
                       className="w-full"
                       nativeButton={false}
-                      render={<Link href="/auth/login" />}
+                      render={<Link href="/auth/sign-in" />}
                     >
                       Sign in
                     </Button>
                     <Button
                       className="w-full"
                       nativeButton={false}
-                      render={<Link href="/auth/register" />}
+                      render={<Link href="/auth/sign-up" />}
                     >
                       Get started
                     </Button>

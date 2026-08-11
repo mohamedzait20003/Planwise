@@ -79,7 +79,7 @@ export function Hero() {
             size="lg"
             className="h-11 rounded-full px-6 text-sm shadow-lg shadow-primary/25 transition-shadow hover:shadow-xl hover:shadow-primary/30"
             nativeButton={false}
-            render={<Link href="/auth/register" />}
+            render={<Link href="/auth/sign-up" />}
           >
             Start tracking
             <ArrowRightIcon className="transition-transform duration-300 group-hover/button:translate-x-0.5" />

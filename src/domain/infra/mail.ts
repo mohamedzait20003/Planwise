@@ -43,7 +43,10 @@ export class GmailMailTransport implements MailTransport {
 
   constructor(user: string, appPassword: string) {
     this.transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      tls: { minVersion: "TLSv1.2" },
       auth: { user, pass: appPassword },
       pool: true,
       maxConnections: 3,

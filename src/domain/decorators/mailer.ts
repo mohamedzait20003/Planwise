@@ -1,9 +1,8 @@
 import "server-only";
-
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
 import Handlebars from "handlebars";
+import { readFileSync } from "node:fs";
+
 
 import { ClassOf, describeClass } from "./global";
 
@@ -39,19 +38,20 @@ import { ClassOf, describeClass } from "./global";
 
 /** What every mail class must provide. */
 export interface Mailable {
-  /** Recipient address. */
   readonly to: string;
-  /** Values the template interpolates. */
   readonly data: Record<string, unknown>;
 }
 
 export type MailerOptions = {
   /** Static subject, or one derived from the data. */
   subject: string | ((data: Record<string, unknown>) => string);
+
   /** Template name, resolved to `src/resources/templates/<name>.hbs`. */
   template: string;
+
   /** Overrides MAIL_FROM for this mail only. */
   from?: string;
+
   /** Reply-To, when it should differ from the sender. */
   replyTo?: string;
 };
@@ -65,7 +65,7 @@ export type RenderedMail = {
   text: string;
 };
 
-/* ---------------------------------------------------------------- decorator */
+/* decorator */
 
 type MailMeta = {
   subject: (data: Record<string, unknown>) => string;
@@ -77,12 +77,7 @@ type MailMeta = {
 const MAILS = new WeakMap<object, MailMeta>();
 
 export function Mailer(options: MailerOptions) {
-  // Normalized once so `renderMail` has a single shape to call, rather than
-  // re-checking whether the subject is a function on every send.
-  const subject =
-    typeof options.subject === "function"
-      ? options.subject
-      : () => options.subject as string;
+  const subject = typeof options.subject === "function" ? options.subject : () => options.subject as string;
 
   return function <C extends ClassOf<Mailable>>(target: C): C {
     describeClass(target, "model", target.name);
@@ -92,6 +87,7 @@ export function Mailer(options: MailerOptions) {
       from: options.from,
       replyTo: options.replyTo,
     });
+
     return target;
   };
 }
@@ -101,12 +97,10 @@ export function Mailer(options: MailerOptions) {
 export function renderMail(mailable: Mailable): RenderedMail {
   const meta = MAILS.get(mailable.constructor);
 
-  // Refuse rather than fall back to a blank body: a mail that sends with no
-  // subject and no content is worse than one that fails loudly.
   if (!meta) {
     throw new Error(
       `${mailable.constructor.name} is not decorated with @Mailer, so it has no ` +
-        `subject or template. Refusing to send.`
+      `subject or template. Refusing to send.`
     );
   }
 
@@ -119,21 +113,46 @@ export function renderMail(mailable: Mailable): RenderedMail {
   };
 }
 
-/* ------------------------------------------------------- template loading */
+/* template loading */
+const TEMPLATE_DIR = join(process.cwd(), "src", "resources", "templates");
 
 /**
- * Resolved from `process.cwd()` — the project root both in development and in
- * a deployed function — rather than from this module's location, which the
- * bundler rewrites.
- */
-const TEMPLATE_DIR = join(process.cwd(), "src", "resources", "templates");
+ * A Handlebars environment dedicated to text/plain bodies.
+ *
+ * Every mail here is plain text, where HTML escaping is not merely pointless
+ * but wrong — Handlebars escapes `=` to `&#x3D;`, which turns every
+ * "?token=..." link into a dead one.
+**/
+const TEXT = Handlebars.create();
+TEXT.Utils.escapeExpression = (value: unknown) => {
+  if (value === null || value === undefined) return "";
+
+  // Stock Handlebars would render a plain object as "[object Object]" and mail
+  // it. Dates, arrays and anything with its own toString are fine; only a bare
+  // object reaches this, and it always means the caller passed the wrong shape.
+  if (
+    typeof value === "object" &&
+    (value as object).toString === Object.prototype.toString
+  ) {
+    throw new Error(
+      `Mail template received an object where a value was expected. It would ` +
+        `render as "[object Object]" — pass a primitive, or a field of the object.`
+    );
+  }
+
+  if (typeof value === "string")
+    return value;
+  
+  return (value as { toString(): string }).toString();
+};
 
 const COMPILED = new Map<string, Handlebars.TemplateDelegate>();
 
 /** Loads and compiles `<name>.hbs` on first use, then caches per process. */
 function template(name: string): Handlebars.TemplateDelegate {
   const cached = COMPILED.get(name);
-  if (cached) return cached;
+  if (cached)
+    return cached;
 
   const file = join(TEMPLATE_DIR, `${name}.hbs`);
 
@@ -143,17 +162,39 @@ function template(name: string): Handlebars.TemplateDelegate {
   } catch (cause) {
     throw new Error(
       `Mail template "${name}" not found at ${file}. If this works locally but ` +
-        `not once deployed, the .hbs files were not traced into the bundle — ` +
-        `see outputFileTracingIncludes in next.config.ts.`,
+      `not once deployed, the .hbs files were not traced into the bundle — ` +
+      `see outputFileTracingIncludes in next.config.ts.`,
       { cause }
     );
   }
 
-  // noEscape because these bodies are text/plain, where HTML escaping is not
-  // merely pointless but wrong: Handlebars escapes `=` to `&#x3D;`, which turns
-  // every "?token=..." link into a dead one. If HTML bodies are added later
-  // they must escape, and should go through a separate compile path.
-  const compiled = Handlebars.compile(source, { noEscape: true });
+  if (looksLikeHtml(source)) {
+    throw new Error(
+      `Mail template "${name}" contains HTML, but templates are rendered as ` +
+      `text/plain through a non-escaping environment, which would interpolate ` +
+      `data unescaped. Add a separate HTML compile path that escapes.`
+    );
+  }
+
+  const compiled = TEXT.compile(source);
   COMPILED.set(name, compiled);
   return compiled;
+}
+
+const HTML_TAGS = new Set([
+  "html", "head", "body", "div", "p", "a", "br", "hr", "table", "tr", "td",
+  "span", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "img",
+  "ul", "ol", "li", "style", "script",
+]);
+
+/** Anything shaped like a tag; the name is then checked against the set. */
+const TAG_LIKE = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi;
+
+function looksLikeHtml(source: string): boolean {
+  for (const match of source.matchAll(TAG_LIKE)) {
+    if (HTML_TAGS.has(match[1].toLowerCase()))
+      return true;
+  }
+
+  return false;
 }

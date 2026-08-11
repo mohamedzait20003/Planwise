@@ -43,6 +43,6 @@ export class ResetPasswordMail implements Mailable {
   readonly data: Record<string, unknown>;
 
   constructor(readonly to: string, FName: string, token: string) {
-    this.data = { FName, url: link("/auth/pass-reset", token) };
+    this.data = { FName, url: link("/auth/reset-password", token) };
   }
 }
