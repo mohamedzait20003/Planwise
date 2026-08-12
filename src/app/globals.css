@@ -51,6 +51,11 @@
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
     --color-chart-1: var(--chart-1);
+
+    --color-mark-plan: var(--mark-plan);
+    --color-mark-actual: var(--mark-actual);
+    --color-mark-favorable: var(--mark-favorable);
+    --color-mark-unfavorable: var(--mark-unfavorable);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -135,6 +140,17 @@
     --chart-4: oklch(0.68 0.145 65);
     --chart-5: oklch(0.60 0.195 18);
 
+    /* Chart marks — same hues as the semantic tokens above, re-stepped.
+       Those steps are tuned for badge and text contrast; a fill sitting on the
+       card needs its own band. The favorable/unfavorable pair is also pushed
+       much further apart in lightness than the badge pair, because lightness is
+       the one axis deuteranopia preserves — at the badge steps the two collapse
+       to ΔE 5.6 and a red bar is indistinguishable from a green one. */
+    --mark-plan: oklch(0.545 0.205 274);
+    --mark-actual: oklch(0.615 0.125 218);
+    --mark-favorable: oklch(0.60 0.15 162);
+    --mark-unfavorable: oklch(0.44 0.185 22);
+
     --sidebar: oklch(0.985 0.004 264);
     --sidebar-foreground: oklch(0.205 0.025 267);
     --sidebar-primary: oklch(0.515 0.21 274);
@@ -189,6 +205,13 @@
     --chart-3: oklch(0.72 0.14 163);
     --chart-4: oklch(0.78 0.14 72);
     --chart-5: oklch(0.68 0.18 18);
+
+    /* Chosen against the dark card, not flipped from the light steps — the
+       light values sit above the band that reads on a dark surface. */
+    --mark-plan: oklch(0.62 0.19 276);
+    --mark-actual: oklch(0.645 0.125 218);
+    --mark-favorable: oklch(0.665 0.15 163);
+    --mark-unfavorable: oklch(0.545 0.185 22);
 
     --sidebar: oklch(0.212 0.022 268);
     --sidebar-foreground: oklch(0.965 0.006 265);

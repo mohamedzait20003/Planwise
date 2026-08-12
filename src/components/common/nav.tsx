@@ -31,13 +31,13 @@ import { cn } from "@/lib/utils/utils";
 
 type NavItem = { href: string; label: string };
 
-// Under /client, which is what proxy.ts protects and where sign-in lands. At
-// the root these were reachable signed-out and were not where anyone arrived.
 const appLinks: NavItem[] = [
   { href: "/client/dashboard", label: "Dashboard" },
+  { href: "/client/categories", label: "Categories" },
   { href: "/client/plans", label: "Plans" },
   { href: "/client/actuals", label: "Actuals" },
   { href: "/client/report", label: "Report" },
+  { href: "/client/periods", label: "Periods" },
 ];
 
 const adminLinks: NavItem[] = [

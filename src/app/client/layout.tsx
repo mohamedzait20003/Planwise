@@ -1,0 +1,22 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: { default: "Workspace", template: "%s · Planwise" },
+};
+
+export default function ClientLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <div className="relative">
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="bg-grid absolute inset-0 mask-[radial-gradient(ellipse_70%_45%_at_50%_0%,black,transparent)]" />
+        <div className="animate-aurora absolute -top-40 left-1/2 h-96 w-208 -translate-x-1/2 rounded-full bg-primary/12 blur-[120px]" />
+      </div>
+
+      <div className="mx-auto w-full max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
+        {children}
+      </div>
+    </div>
+  );
+}

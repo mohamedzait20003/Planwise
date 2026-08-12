@@ -36,9 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      // next-themes writes the theme class here before paint
       suppressHydrationWarning
-      // Next 16 no longer overrides scroll-behavior during navigation unless asked
       data-scroll-behavior="smooth"
       className={cn(
         "h-full",

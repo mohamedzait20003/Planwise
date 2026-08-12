@@ -1,19 +1,3 @@
-/**
- * Variance rules for the plan-vs-actual report.
- *
- * Sign convention: variance = actual − plan, so a NEGATIVE variance means the
- * category came in UNDER plan (favorable) and a positive one means it went OVER
- * (unfavorable).
- *
- * Two edge cases the report has to survive:
- *
- * 1. Missing actual — treated as 0. A $5,000 plan with nothing logged reads as
- *    −5,000 / −100%, not as a blank row. Chosen over showing "—" so that totals
- *    and charts stay additive and a forgotten entry is loud rather than quiet.
- * 2. Plan = 0 — variance % has no denominator, so it is `null` and the UI shows
- *    "N/A". Never Infinity, never NaN.
- */
-
 export type VarianceResult = {
   /** actual − plan. Negative = under plan. */
   variance: number;
@@ -25,8 +9,7 @@ export function computeVariance(
   plan: number,
   actual: number | null | undefined
 ): VarianceResult {
-  const actualValue = actual ?? 0;
-  const variance = actualValue - plan;
+  const variance = (actual ?? 0) - plan;
 
   return {
     variance,
