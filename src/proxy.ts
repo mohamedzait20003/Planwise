@@ -3,18 +3,22 @@ import { NextResponse } from "next/server";
 
 export default withAuth(
   function proxy(req) {
-    const { pathname } = req.nextUrl;
+    const { pathname, search } = req.nextUrl;
     const token = req.nextauth.token;
 
     if (!token) {
-      return NextResponse.redirect(new URL("/auth/sign-in", req.url));
+      const url = new URL("/auth/sign-in", req.url);
+      url.searchParams.set("callbackUrl", pathname + search);
+      return NextResponse.redirect(url);
     }
 
-    if (pathname.startsWith("/admin") && token.role !== "ADMIN") {
+    const role = token.role ?? "USER";
+
+    if (pathname.startsWith("/admin") && role !== "ADMIN") {
       return NextResponse.redirect(new URL("/client/dashboard", req.url));
     }
 
-    if (pathname.startsWith("/client") && token.role !== "USER") {
+    if (pathname.startsWith("/client") && role !== "USER") {
       return NextResponse.redirect(new URL("/admin/dashboard", req.url));
     }
 

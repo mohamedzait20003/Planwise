@@ -31,11 +31,13 @@ import { cn } from "@/lib/utils/utils";
 
 type NavItem = { href: string; label: string };
 
+// Under /client, which is what proxy.ts protects and where sign-in lands. At
+// the root these were reachable signed-out and were not where anyone arrived.
 const appLinks: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/plans", label: "Plans" },
-  { href: "/actuals", label: "Actuals" },
-  { href: "/report", label: "Report" },
+  { href: "/client/dashboard", label: "Dashboard" },
+  { href: "/client/plans", label: "Plans" },
+  { href: "/client/actuals", label: "Actuals" },
+  { href: "/client/report", label: "Report" },
 ];
 
 const adminLinks: NavItem[] = [
@@ -138,9 +140,9 @@ export function Nav() {
 
   useMotionValueEvent(scrollY, "change", (y) => setLifted(y > 12));
 
-  // `role` is added by the app's next-auth callbacks; read it without asserting
-  // a global Session augmentation that auth setup will own later.
-  const role = (session?.user as { role?: string } | undefined)?.role;
+  // `role` is written by the next-auth callbacks in domain/infra/auth.ts and
+  // declared in types/next-auth.d.ts, so it reads straight off the session.
+  const role = session?.user?.role;
   const signedIn = Boolean(session);
 
   // Signed-out visitors get no nav links — just the logo and the auth actions.
@@ -152,7 +154,11 @@ export function Nav() {
     session?.user?.name?.slice(0, 2).toUpperCase() ??
     session?.user?.email?.slice(0, 2).toUpperCase() ??
     "?";
-  const homeHref = role === "ADMIN" ? "/admin/dashboard" : signedIn ? "/dashboard" : "/";
+  // Same shape as `links` above rather than a nested ternary — three outcomes
+  // on one line reads as a puzzle.
+  let homeHref = "/";
+  if (role === "ADMIN") homeHref = "/admin/dashboard";
+  else if (signedIn) homeHref = "/client/dashboard";
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");

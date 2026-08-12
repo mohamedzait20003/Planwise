@@ -1,19 +1,14 @@
 "use client";
 
-import { useId, useState } from "react";
 import { motion } from "framer-motion";
+import { useId, useState } from "react";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 
+import { cn } from "@/lib/utils/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils/utils";
 
-/**
- * Password input with a reveal toggle.
- *
- * The toggle exists because hiding the field makes typos invisible, and a typo
- * in a password you cannot see is the most common reason a sign-up fails twice.
- */
+
 export function PasswordField({
   name,
   label = "Password",
@@ -51,8 +46,6 @@ export function PasswordField({
         <button
           type="button"
           onClick={() => setVisible((shown) => !shown)}
-          // aria-pressed rather than a label swap, so a screen reader announces
-          // the state rather than a verb whose effect it cannot see.
           aria-pressed={visible}
           aria-label={visible ? "Hide password" : "Show password"}
           className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"

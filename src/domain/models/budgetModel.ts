@@ -6,7 +6,6 @@ import type {
   Plan as PrismaPlan,
   Actual as PrismaActual,
   PeriodLock as PrismaPeriodLock,
-  ImportBatch as PrismaImportBatch,
   Prisma,
 } from "../../../generated/prisma/client";
 
@@ -100,7 +99,6 @@ export class ActualModel {
   readonly periodMonth: Date;
   readonly amount: number;
   readonly note: string | null;
-  readonly importBatchId: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -111,18 +109,12 @@ export class ActualModel {
     this.periodMonth = row.periodMonth;
     this.amount = decimalToNumber(row.amount);
     this.note = row.note;
-    this.importBatchId = row.importBatchId;
     this.createdAt = row.createdAt;
     this.updatedAt = row.updatedAt;
   }
 
   get month(): string {
     return toMonthString(this.periodMonth);
-  }
-
-  /** Provenance is derived, never stored — see the schema notes. */
-  get wasImported(): boolean {
-    return this.importBatchId !== null;
   }
 
   toJSON() {
@@ -156,29 +148,3 @@ export class PeriodLockModel {
   }
 }
 
-@Model<ImportBatchModel>({ name: "ImportBatch" })
-export class ImportBatchModel {
-  readonly id: string;
-  readonly userId: string;
-  readonly filename: string;
-  readonly rowsAccepted: number;
-  readonly rowsRejected: number;
-  readonly createdAt: Date;
-
-  constructor(row: PrismaImportBatch) {
-    this.id = row.id;
-    this.userId = row.userId;
-    this.filename = row.filename;
-    this.rowsAccepted = row.rowsAccepted;
-    this.rowsRejected = row.rowsRejected;
-    this.createdAt = row.createdAt;
-  }
-
-  get totalRows(): number {
-    return this.rowsAccepted + this.rowsRejected;
-  }
-
-  toJSON() {
-    return toDTO(this);
-  }
-}

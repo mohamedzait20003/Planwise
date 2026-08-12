@@ -1,5 +1,9 @@
 "use client";
 
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { LoaderCircleIcon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 
 /**
@@ -32,14 +36,28 @@ function GoogleMark() {
   );
 }
 
-export function GoogleButton({ label }: Readonly<{ label: string }>) {
+export function GoogleButton({
+  label,
+  callbackUrl = "/auth/callback",
+}: Readonly<{ label: string; callbackUrl?: string }>) {
+  const [leaving, setLeaving] = useState(false);
+
   return (
     <Button
       type="button"
       variant="outline"
+      disabled={leaving}
+      onClick={() => {
+        // A full-page redirect to Google, so there is no result to await and no
+        // success path to handle here — `redirect: false` is only honoured by
+        // the credentials and email providers. The flag exists so the button
+        // stops inviting clicks during the moment before the browser leaves.
+        setLeaving(true);
+        signIn("google", { callbackUrl });
+      }}
       className="h-11 w-full rounded-xl text-sm transition-colors hover:bg-muted"
     >
-      <GoogleMark />
+      {leaving ? <LoaderCircleIcon className="animate-spin" /> : <GoogleMark />}
       {label}
     </Button>
   );

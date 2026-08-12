@@ -5,21 +5,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeftIcon, LoaderCircleIcon, MailCheckIcon, MailIcon } from "lucide-react";
 
 import { AuthShell, AuthRow, AuthLink } from "@/components/auth/auth-shell";
+import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRequestPasswordReset } from "@/lib/hooks";
 
 export default function ForgetPasswordPage() {
-  const [pending, setPending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [Email, setEmail] = useState("");
+  const request = useRequestPasswordReset();
 
-  function onSubmit(event: React.FormEvent) {
+  function onSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPending(true);
-    setTimeout(() => {
-      setPending(false);
-      setSent(true);
-    }, 1000);
+    request.mutate(Email.trim());
   }
 
   return (
@@ -27,7 +25,7 @@ export default function ForgetPasswordPage() {
       title="Forgot your"
       accent="password?"
       description={
-        sent
+        request.isSuccess
           ? undefined
           : "Give us the address on the account and we'll send a reset link."
       }
@@ -41,7 +39,7 @@ export default function ForgetPasswordPage() {
       }
     >
       <AnimatePresence mode="wait" initial={false}>
-        {sent ? (
+        {request.isSuccess ? (
           <motion.div
             key="sent"
             initial={{ opacity: 0, y: 8 }}
@@ -60,17 +58,18 @@ export default function ForgetPasswordPage() {
             </motion.span>
 
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {/* Worded so it is true whether or not the address exists — the
-                  endpoint answers identically either way, and promising "sent"
-                  outright would turn this page into an account-existence check. */}
-              If an account exists for that address, a reset link is on its way.
-              The link expires in 30 minutes.
+              {/* The server's own wording, which is deliberately conditional —
+                  it answers identically whether or not the account exists, so
+                  this page cannot be used to discover which addresses are
+                  registered. */}
+              {request.data?.message ??
+                "If an account exists for that address, a reset link is on its way."}
             </p>
 
             <Button
               variant="outline"
               className="w-full rounded-xl"
-              onClick={() => setSent(false)}
+              onClick={() => request.reset()}
             >
               Use a different address
             </Button>
@@ -91,22 +90,29 @@ export default function ForgetPasswordPage() {
                 <MailIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="email"
-                  name="Email"
                   type="email"
                   autoComplete="email"
                   placeholder="you@company.com"
                   className="pl-9"
+                  value={Email}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
             </AuthRow>
 
             <AuthRow>
+              <FormMessage>
+                {request.error ? errorMessage(request.error) : null}
+              </FormMessage>
+            </AuthRow>
+
+            <AuthRow>
               <Button
                 type="submit"
-                disabled={pending}
+                disabled={request.isPending || Email.trim() === ""}
                 className="h-11 w-full rounded-xl text-sm shadow-lg shadow-primary/20"
               >
-                {pending ? (
+                {request.isPending ? (
                   <>
                     <LoaderCircleIcon className="animate-spin" />
                     Sending…
