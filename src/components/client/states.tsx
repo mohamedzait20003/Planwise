@@ -33,13 +33,51 @@ export function LoadingRows({
             duration: 1.4,
             repeat: Infinity,
             ease: "easeInOut",
-            // Offset per row so the shimmer travels down the list rather than
-            // pulsing as one block, which reads as a broken screen.
             delay: index * 0.09,
           }}
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * A report that is still being computed on the queue.
+ *
+ * Distinct from `LoadingRows`, which means "the request is in flight". This one
+ * means the request came back and the answer does not exist yet — a difference
+ * worth showing, because it is the one that can take more than a moment and the
+ * one where a user would otherwise assume the page had hung.
+ */
+export function GeneratingState({
+  className,
+}: Readonly<{ className?: string }>) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      role="status"
+      className={cn(
+        "flex flex-col items-center gap-4 rounded-2xl bg-info/6 px-6 py-14 text-center ring-1 ring-info/20",
+        className
+      )}
+    >
+      <motion.span
+        className="flex size-14 items-center justify-center rounded-2xl bg-info/12 text-info ring-1 ring-info/25"
+        animate={{ scale: [1, 1.06, 1] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <LoaderCircleIcon className="size-6 animate-spin" />
+      </motion.span>
+
+      <div className="space-y-1.5">
+        <p className="font-medium">Crunching the numbers</p>
+        <p className="mx-auto max-w-sm text-sm leading-relaxed text-pretty text-muted-foreground">
+          This report is being generated. It will appear here as soon as it is
+          ready — no need to refresh.
+        </p>
+      </div>
+    </motion.div>
   );
 }
 

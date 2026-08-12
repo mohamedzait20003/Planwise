@@ -1,5 +1,15 @@
 /**
- * Month helpers.
+ * Month helpers, for the browser.
+ *
+ * Labels, picker arithmetic and the range presets — the month equivalents of
+ * `variance.ts`'s formatters. Client-side, and it lives here rather than in
+ * `domain/` for that reason: nothing on the server imports it.
+ *
+ * It overlaps `domain/helpers/period.ts` on `isMonth` and `monthsBetween`, and
+ * that is not an accident waiting to be tidied. This module works in the user's
+ * own zone, which is right for a picker labelled "this quarter"; `period.ts`
+ * works in UTC because it converts to a DATE column. Merging them means one of
+ * the two starts lying about which zone it is in.
  *
  * The app's unit of time is a calendar month, written "YYYY-MM" everywhere it
  * crosses a boundary — URL, API, CSV. It is deliberately a string and not a

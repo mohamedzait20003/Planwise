@@ -17,7 +17,13 @@ import { StatTile, CountUpValue } from "@/components/client/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
+import {
+  EmptyState,
+  ErrorState,
+  GeneratingState,
+  LoadingRows,
+} from "@/components/client/states";
+import { ApiError } from "@/lib/api";
 import {
   Money,
   NotLogged,
@@ -34,7 +40,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useReport, downloadReportCsv } from "@/lib/hooks";
+import { Label } from "@/components/ui/label";
+import { useCategories, useReport, downloadReportCsv } from "@/lib/hooks";
 import { currentMonth, monthShort, quarterOf } from "@/lib/utils/month";
 import type { MonthRange } from "@/lib/utils/month";
 import { formatCurrency } from "@/lib/utils/variance";
@@ -70,15 +77,27 @@ function byMonth(rows: ReportRow[]): Array<[month: string, rows: ReportRow[]]> {
 export default function ReportPage() {
   const anchor = currentMonth();
   const [range, setRange] = useState<MonthRange>(() => quarterOf(anchor));
+  const [categoryId, setCategoryId] = useState("");
   const [exporting, setExporting] = useState(false);
 
-  const report = useReport(range);
-  const data = report.data;
+  const categories = useCategories();
+
+  // "" means every category. It is also how the server keys the stored run, so
+  // filtered and unfiltered reports are separate runs rather than one
+  // overwriting the other.
+  const params = { ...range, ...(categoryId ? { categoryId } : {}) };
+  const report = useReport(params);
+
+  // The report may not exist yet — generation is queued, so the first answer is
+  // usually "pending" and the numbers arrive on a later poll.
+  const outcome = report.data;
+  const data = outcome?.ready ? outcome.report : undefined;
+  const progress = outcome && !outcome.ready ? outcome.progress : undefined;
 
   async function onExport() {
     setExporting(true);
     try {
-      await downloadReportCsv(range);
+      await downloadReportCsv(params);
     } finally {
       // Always clears: a failed download must not leave the button spinning
       // forever with no way back.
@@ -112,7 +131,29 @@ export default function ReportPage() {
 
       <Rise>
         <Panel>
-          <RangeField value={range} onChange={setRange} anchor={anchor} />
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+            <RangeField value={range} onChange={setRange} anchor={anchor} />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="filter" className="text-xs text-muted-foreground">
+                Category
+              </Label>
+              <select
+                id="filter"
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+                className="h-9 rounded-xl border border-input bg-background px-3 text-sm transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none dark:bg-input/30"
+              >
+                <option value="">All categories</option>
+                {(categories.data ?? []).map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                    {category.archivedAt ? " (archived)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </Panel>
       </Rise>
 
@@ -125,6 +166,21 @@ export default function ReportPage() {
       {report.isPending && !report.isError && (
         <Rise>
           <LoadingRows rows={6} />
+        </Rise>
+      )}
+
+      {progress && progress.status !== "failed" && (
+        <Rise>
+          <GeneratingState />
+        </Rise>
+      )}
+
+      {progress?.status === "failed" && (
+        <Rise>
+          <ErrorState
+            error={new ApiError(500, progress.error ?? "The report failed to generate")}
+            onRetry={() => report.refetch()}
+          />
         </Rise>
       )}
 

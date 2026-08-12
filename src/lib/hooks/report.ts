@@ -3,18 +3,42 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { exportReportCsv, getReport } from "@/lib/handlers/report";
+import type { ReportOutcome } from "@/lib/handlers/report";
 import { reportKeys } from "@/lib/api/keys";
 import type { ReportQuery } from "@/lib/api/types";
 
+/** How often to ask again while a run is still being computed. */
+const POLL_MS = 2_000;
+
+/**
+ * The report, waiting for it if it is still being generated.
+ *
+ * Generation is queued, so the first ask usually answers "pending" and the
+ * numbers arrive on a later poll. `refetchInterval` drives that, and stops the
+ * moment the run is ready or has failed — a failed run against unchanged data
+ * would fail identically forever, so polling it is just noise.
+ *
+ * Polling hits the same endpoint as the first request, which is safe because it
+ * is idempotent: it leaves a job already in flight alone rather than queueing
+ * another.
+ *
+ * `staleTime` is 0 deliberately, unlike the other lists. Any write bumps the
+ * server's data version and the stored run becomes stale, so a cached report is
+ * the one thing here that must never be served without asking.
+ */
 export function useReport(params: ReportQuery) {
   return useQuery({
     queryKey: reportKeys.query(params),
     queryFn: () => getReport(params),
-    staleTime: 60_000,
-    gcTime: 5 * 60_000,
-    select: (res) => res.data,
-    // A half-filled range would query for a period the user has not chosen yet.
     enabled: Boolean(params.from && params.to),
+    staleTime: 0,
+    gcTime: 5 * 60_000,
+    refetchInterval: (query) => {
+      const outcome = query.state.data as ReportOutcome | undefined;
+      if (!outcome || outcome.ready) return false;
+
+      return outcome.progress.status === "failed" ? false : POLL_MS;
+    },
   });
 }
 

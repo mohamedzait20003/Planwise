@@ -17,7 +17,12 @@ import { StatTile, CountUpValue } from "@/components/client/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger } from "@/components/client/motion";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
+import {
+  EmptyState,
+  ErrorState,
+  GeneratingState,
+  LoadingRows,
+} from "@/components/client/states";
 import { Money, VarianceAmount, VarianceChip } from "@/components/client/variance";
 import { Button } from "@/components/ui/button";
 import { useCategories, useLocks, useReport } from "@/lib/hooks";
@@ -75,7 +80,11 @@ export default function DashboardPage() {
   const locks = useLocks();
   const categories = useCategories();
 
-  const data = report.data;
+  // Generation is queued, so the numbers may not exist yet on a first load.
+  const outcome = report.data;
+  const data = outcome?.ready ? outcome.report : undefined;
+  const generating = outcome !== undefined && !outcome.ready;
+
   const locked = (locks.data ?? []).some((lock) => lock.month === thisMonth);
   const activeCategories = (categories.data ?? []).filter(
     (category) => category.archivedAt === null
@@ -87,7 +96,7 @@ export default function DashboardPage() {
   const currentPct =
     current && current.plan !== 0 ? (current.variance / current.plan) * 100 : null;
 
-  const empty = data !== undefined && data.rows.length === 0;
+  const empty = data?.rows.length === 0;
 
   return (
     <Stagger className="space-y-8">
@@ -108,6 +117,12 @@ export default function DashboardPage() {
       {report.isPending && !report.isError && (
         <Rise>
           <LoadingRows rows={4} />
+        </Rise>
+      )}
+
+      {generating && (
+        <Rise>
+          <GeneratingState />
         </Rise>
       )}
 

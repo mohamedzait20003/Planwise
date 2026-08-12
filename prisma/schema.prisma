@@ -39,10 +39,17 @@ model User {
   updatedAt    DateTime @updatedAt
   emailVerifiedAt DateTime?
 
+  /// Bumped by every write that can move a report number — a plan, an actual,
+  /// a lock, a category rename. A stored ReportRun records the version it was
+  /// computed against, so staleness is one integer compare rather than a scan
+  /// of everything in range.
+  dataVersion  Int      @default(0)
+
   plans         Plan[]
   actuals       Actual[]
   categories    Category[]
   periodLocks   PeriodLock[]
+  reportRuns    ReportRun[]
 
   passwordResets     PasswordReset?
   emailVerifications EmailVerification?
@@ -163,5 +170,80 @@ model PeriodLock {
 
   @@unique([userId, periodMonth])
   @@map("period_locks")
+}
+
+enum ReportStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+model ReportRun {
+  id     String @id @default(cuid())
+  userId String
+
+  fromMonth DateTime @db.Date
+  toMonth   DateTime @db.Date
+  categoryId String @default("")
+
+  status ReportStatus @default(PENDING)
+  
+  error  String?
+
+  totalPlan     Decimal @default(0) @db.Decimal(14, 2)
+  totalActual   Decimal @default(0) @db.Decimal(14, 2)
+  totalVariance Decimal @default(0) @db.Decimal(14, 2)
+
+  dataVersion Int @default(0)
+
+  requestedAt DateTime  @default(now())
+  computedAt  DateTime?
+
+  rows   ReportRow[]
+  months ReportMonth[]
+
+  user User @relation(fields: [userId], references: [Id], onDelete: Cascade)
+
+  @@unique([userId, fromMonth, toMonth, categoryId])
+  @@index([userId, status])
+  @@map("report_runs")
+}
+
+model ReportRow {
+  id    String @id @default(cuid())
+  runId String
+
+  categoryId String
+  categoryName String
+  periodMonth  DateTime @db.Date
+
+  plan     Decimal @db.Decimal(14, 2)
+  actual   Decimal @db.Decimal(14, 2)
+  variance Decimal @db.Decimal(14, 2)
+
+  variancePct Decimal? @db.Decimal(10, 4)
+
+  hasActual Boolean
+  locked    Boolean
+
+  run ReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, periodMonth])
+  @@map("report_rows")
+}
+
+model ReportMonth {
+  id          String   @id @default(cuid())
+  runId       String
+  periodMonth DateTime @db.Date
+
+  plan     Decimal @db.Decimal(14, 2)
+  actual   Decimal @db.Decimal(14, 2)
+  variance Decimal @db.Decimal(14, 2)
+
+  run ReportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, periodMonth])
+  @@map("report_months")
 }
 

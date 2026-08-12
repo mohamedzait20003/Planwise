@@ -15,20 +15,20 @@ export type LockPeriodInput = {
 };
 
 export async function getLocks(): Promise<ApiEnvelope<PeriodLock[]>> {
-  const res = await baseApi.get<ApiEnvelope<PeriodLock[]>>("/locks");
+  const res = await baseApi.get<ApiEnvelope<PeriodLock[]>>("/client/locks");
   return res.data;
 }
 
 export async function lockPeriod(
   input: LockPeriodInput
 ): Promise<ApiEnvelope<PeriodLock>> {
-  const res = await baseApi.post<ApiEnvelope<PeriodLock>>("/locks", input);
+  const res = await baseApi.post<ApiEnvelope<PeriodLock>>("/client/locks", input);
   return res.data;
 }
 
 export async function unlockPeriod(
   month: string
 ): Promise<ApiEnvelope<undefined>> {
-  const res = await baseApi.delete<ApiEnvelope<undefined>>(`/locks/${month}`);
+  const res = await baseApi.delete<ApiEnvelope<undefined>>(`/client/locks/${month}`);
   return res.data;
 }

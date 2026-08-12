@@ -2,7 +2,7 @@ import { baseApi } from "@/lib/api/baseApi";
 import type { ApiEnvelope, Plan, UpsertPlanInput } from "@/lib/api/types";
 
 export async function getPlans(month?: string): Promise<ApiEnvelope<Plan[]>> {
-  const res = await baseApi.get<ApiEnvelope<Plan[]>>("/plans", {
+  const res = await baseApi.get<ApiEnvelope<Plan[]>>("/client/plans", {
     params: month ? { month } : undefined,
   });
   return res.data;
@@ -21,11 +21,11 @@ export async function getPlans(month?: string): Promise<ApiEnvelope<Plan[]>> {
 export async function upsertPlan(
   input: UpsertPlanInput
 ): Promise<ApiEnvelope<Plan>> {
-  const res = await baseApi.put<ApiEnvelope<Plan>>("/plans", input);
+  const res = await baseApi.put<ApiEnvelope<Plan>>("/client/plans", input);
   return res.data;
 }
 
 export async function deletePlan(id: string): Promise<ApiEnvelope<undefined>> {
-  const res = await baseApi.delete<ApiEnvelope<undefined>>(`/plans/${id}`);
+  const res = await baseApi.delete<ApiEnvelope<undefined>>(`/client/plans/${id}`);
   return res.data;
 }

@@ -20,7 +20,6 @@ import { LockPill, LockedNotice } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
 import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
 import { StatTile, CountUpValue } from "@/components/client/stat-tile";
-import { Money } from "@/components/client/variance";
 import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import {
   Table,
@@ -40,7 +39,9 @@ import {
   useDeleteActual,
   useImportActuals,
   useLocks,
+  useUpdateActual,
 } from "@/lib/hooks";
+import type { Actual } from "@/lib/api/types";
 import { currentMonth, monthLong } from "@/lib/utils/month";
 import { formatCurrency } from "@/lib/utils/variance";
 import { cn } from "@/lib/utils/utils";
@@ -56,6 +57,113 @@ import { cn } from "@/lib/utils/utils";
  * bad ones should land thirty-eight, not nothing. The rejects come back with
  * their line numbers so they can be fixed and re-sent.
  */
+
+/**
+ * An entry's amount and note, editable in place.
+ *
+ * Same commit-on-blur contract as the plans grid, and for the same reason:
+ * correcting a figure you mistyped should not cost a dialog. The service checks
+ * the lock on the row's stored month, so an entry cannot be edited out of a
+ * closed period even if this input somehow renders enabled.
+ */
+function EditableEntry({
+  entry,
+  disabled,
+}: Readonly<{ entry: Actual; disabled: boolean }>) {
+  const update = useUpdateActual();
+  const [amount, setAmount] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  function commitAmount() {
+    const draft = amount;
+    setAmount(null);
+    if (draft === null) return;
+
+    const parsed = Number(draft.trim());
+    if (draft.trim() === "" || Number.isNaN(parsed) || parsed < 0) return;
+    if (parsed === entry.amount) return;
+
+    update.mutate({ id: entry.id, amount: parsed });
+  }
+
+  function commitNote() {
+    const draft = note;
+    setNote(null);
+    if (draft === null) return;
+
+    const next = draft.trim();
+    if (next === (entry.note ?? "")) return;
+
+    // "" clears it rather than storing an empty string — the DTO maps it to
+    // null, which is what "no note" means in the column.
+    update.mutate({ id: entry.id, note: next });
+  }
+
+  return (
+    <>
+      <TableCell className="max-w-sm">
+        <input
+          value={note ?? entry.note ?? ""}
+          disabled={disabled}
+          placeholder="—"
+          aria-label="Note"
+          onChange={(event) => setNote(event.target.value)}
+          onBlur={commitNote}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+            if (event.key === "Escape") {
+              setNote(null);
+              event.currentTarget.blur();
+            }
+          }}
+          maxLength={200}
+          className={cn(
+            "h-9 w-full rounded-lg border border-transparent bg-transparent px-2 text-sm transition-colors",
+            "hover:border-border focus-visible:border-ring focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+            "disabled:cursor-not-allowed disabled:hover:border-transparent"
+          )}
+        />
+      </TableCell>
+
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          {update.isPending && (
+            <LoaderCircleIcon className="size-3.5 animate-spin text-muted-foreground" />
+          )}
+          <div className="relative">
+            <span className="absolute top-1/2 left-2.5 -translate-y-1/2 text-xs text-muted-foreground">
+              $
+            </span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              disabled={disabled}
+              value={amount ?? entry.amount}
+              aria-label="Amount"
+              onChange={(event) => setAmount(event.target.value)}
+              onBlur={commitAmount}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") event.currentTarget.blur();
+                if (event.key === "Escape") {
+                  setAmount(null);
+                  event.currentTarget.blur();
+                }
+              }}
+              className={cn(
+                "h-9 w-32 rounded-lg border border-transparent bg-transparent pr-2 pl-6 text-right text-sm tabular transition-colors",
+                "hover:border-border focus-visible:border-ring focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                "disabled:cursor-not-allowed disabled:hover:border-transparent",
+                update.isError && "border-unfavorable"
+              )}
+            />
+          </div>
+        </div>
+      </TableCell>
+    </>
+  );
+}
 
 function AddEntryForm({
   month,
@@ -335,7 +443,7 @@ export default function ActualsPage() {
       <Rise>
         <Panel
           title="Import from CSV"
-          description="One row per entry. Category names must already exist, and months must read YYYY-MM."
+          description="A header row naming month, category and amount — in any order — then one row per entry. Category names must already exist, and months must read YYYY-MM."
         >
           <ImportPanel disabled={locked} />
         </Panel>
@@ -383,12 +491,9 @@ export default function ActualsPage() {
                         <TableCell className="font-medium">
                           {names.get(entry.categoryId) ?? "Unknown category"}
                         </TableCell>
-                        <TableCell className="max-w-sm truncate text-sm text-muted-foreground">
-                          {entry.note ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Money value={entry.amount} />
-                        </TableCell>
+
+                        <EditableEntry entry={entry} disabled={locked} />
+
                         <TableCell className="text-right">
                           <Button
                             variant="ghost"

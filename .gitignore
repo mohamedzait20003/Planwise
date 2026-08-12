@@ -44,3 +44,10 @@ yarn-error.log*
 next-env.d.ts
 
 /generated/prisma
+
+# testing
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/coverage

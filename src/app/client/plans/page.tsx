@@ -20,7 +20,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useCategories, useLocks, usePlans, useUpsertPlan } from "@/lib/hooks";
+import {
+  useCategories,
+  useDeletePlan,
+  useLocks,
+  usePlans,
+  useUpsertPlan,
+} from "@/lib/hooks";
+import type { Plan } from "@/lib/api/types";
 import { currentMonth, monthLong } from "@/lib/utils/month";
 import { formatCurrency } from "@/lib/utils/variance";
 import { cn } from "@/lib/utils/utils";
@@ -41,51 +48,60 @@ import { cn } from "@/lib/utils/utils";
 function PlanCell({
   categoryId,
   month,
-  amount,
+  plan,
   disabled,
 }: Readonly<{
   categoryId: string;
   month: string;
-  amount: number | undefined;
+  plan: Plan | undefined;
   disabled: boolean;
 }>) {
   const upsert = useUpsertPlan();
+  const remove = useDeletePlan();
+
   const [draft, setDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const committed = amount === undefined ? "" : String(amount);
+  const committed = plan === undefined ? "" : String(plan.amount);
   const value = draft ?? committed;
+  const pending = upsert.isPending || remove.isPending;
+
+  function flash() {
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1400);
+  }
 
   function commit() {
     setDraft(null);
     if (draft === null) return;
 
-    const parsed = Number(draft);
-    // An empty box means "no target", which is not the same as a target of 0
-    // and must not silently become one.
-    if (draft.trim() === "" || Number.isNaN(parsed) || parsed < 0) return;
-    if (parsed === amount) return;
+    const trimmed = draft.trim();
 
-    upsert.mutate(
-      { categoryId, month, amount: parsed },
-      {
-        onSuccess: () => {
-          setSaved(true);
-          window.setTimeout(() => setSaved(false), 1400);
-        },
-      }
-    );
+    // Emptying the box means "no target", which is not the same as a target of
+    // $0 — so the row is removed rather than saved as zero. The report then
+    // shows N/A for the percentage instead of treating every dollar spent as
+    // infinitely over a plan of nothing.
+    if (trimmed === "") {
+      if (plan) remove.mutate(plan.id, { onSuccess: flash });
+      return;
+    }
+
+    const parsed = Number(trimmed);
+    if (Number.isNaN(parsed) || parsed < 0) return;
+    if (parsed === plan?.amount) return;
+
+    upsert.mutate({ categoryId, month, amount: parsed }, { onSuccess: flash });
   }
 
   return (
     <div className="flex items-center justify-end gap-2">
       <AnimatePresence>
-        {upsert.isPending && (
+        {pending && (
           <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <LoaderCircleIcon className="size-3.5 animate-spin text-muted-foreground" />
           </motion.span>
         )}
-        {saved && !upsert.isPending && (
+        {saved && !pending && (
           <motion.span
             initial={{ opacity: 0, scale: 0.6 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -123,7 +139,7 @@ function PlanCell({
             "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground",
             "dark:bg-input/30",
-            upsert.isError && "border-unfavorable"
+            (upsert.isError || remove.isError) && "border-unfavorable"
           )}
         />
       </div>
@@ -141,8 +157,8 @@ export default function PlansPage() {
   const locked = (locks.data ?? []).some((lock) => lock.month === month);
   const active = (categories.data ?? []).filter((c) => c.archivedAt === null);
 
-  const amounts = new Map((plans.data ?? []).map((p) => [p.categoryId, p.amount]));
-  const total = [...amounts.values()].reduce((sum, amount) => sum + amount, 0);
+  const byCategory = new Map((plans.data ?? []).map((p) => [p.categoryId, p]));
+  const total = [...byCategory.values()].reduce((sum, p) => sum + p.amount, 0);
 
   const failure = categories.error ?? plans.error ?? locks.error;
   const loading = categories.isPending || plans.isPending;
@@ -165,7 +181,7 @@ export default function PlansPage() {
               label="Planned this month"
               icon={<TargetIcon className="size-4" />}
               value={<CountUpValue to={total} format={formatCurrency} />}
-              hint={`${amounts.size} of ${active.length} categories have a target`}
+              hint={`${byCategory.size} of ${active.length} categories have a target`}
               className="min-w-56 flex-1"
             />
           </div>
@@ -230,7 +246,7 @@ export default function PlansPage() {
                           <PlanCell
                             categoryId={category.id}
                             month={month}
-                            amount={amounts.get(category.id)}
+                            plan={byCategory.get(category.id)}
                             disabled={locked}
                           />
                         </TableCell>

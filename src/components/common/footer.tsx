@@ -1,5 +1,3 @@
-import { LockIcon } from "lucide-react";
-
 import { Logo } from "@/components/common/logo";
 import { Separator } from "@/components/ui/separator";
 
