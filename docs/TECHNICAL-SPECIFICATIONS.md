@@ -12,6 +12,7 @@ Stack, contracts, environment, conventions.
 | Runtime | Node | 24.x |
 | Language | TypeScript, strict | 5.x |
 | UI | React, Tailwind CSS v4, Base UI, framer-motion | 19.2 |
+| Charts | `d3-scale`, `d3-shape`, `d3-array` — maths only | 4.0 / 3.2 / 3.2 |
 | Server state | TanStack Query | 5.x |
 | HTTP | axios, `withCredentials` | 1.19 |
 | Database | Postgres via Prisma + `@prisma/adapter-pg` | 7.9.1 |
@@ -92,7 +93,7 @@ message — the raw text can carry SQL, file paths or column names.
 | `*` | `/api/auth/[...nextauth]` | session, csrf, signin, signout, Google callback |
 | `GET` `POST` | `/api/client/categories` | list, create |
 | `PATCH` | `/api/client/categories/[id]` | rename, archive — no delete |
-| `GET` `POST` | `/api/client/plans` | list, upsert |
+| `GET` `PUT` | `/api/client/plans` | list, upsert — PUT because it is idempotent |
 | `DELETE` | `/api/client/plans/[id]` | |
 | `GET` `POST` | `/api/client/actuals` | `?month=&categoryId=` |
 | `PATCH` `DELETE` | `/api/client/actuals/[id]` | |
@@ -160,7 +161,9 @@ src/
     api/{auth,client,queues}/   route handlers
     auth/                       sign-in, sign-up, verify, reset, callback
     client/                     dashboard, categories, plans, actuals, report, periods
-  components/{auth,client,common,landing,ui}/
+  components/
+    {auth,client,common,landing,ui}/
+    charts/                     scales, axes, marks — no data fetching, no domain
   domain/
     decorators/                 Endpoint, Auth, Body, Require; Service, Transactional; Repository
     dtos/                       Zod schemas — the DTO *is* the schema
@@ -171,7 +174,8 @@ src/
     api/                        axios instance, ApiError, wire types, query keys
     handlers/                   request functions, React-free
     hooks/                      TanStack Query wrappers
-    utils/                      month.ts, variance.ts, utils.ts   (client-side)
+    utils/                      month.ts, variance.ts, category-color.ts,
+                                use-chart-size.ts, utils.ts   (client-side)
   proxy.ts                      route guard (Next 16's middleware)
 tests/{unit,e2e}/
 ```
@@ -179,6 +183,11 @@ tests/{unit,e2e}/
 `domain/helpers` is server-only; `lib/utils` is client-side. Nothing crosses.
 `month.ts` and `period.ts` overlap on `isMonth`/`monthsBetween` deliberately —
 one works in the user's zone for pickers, the other in UTC for the database.
+
+`components/charts` knows scales and marks and nothing else — it takes points
+and a width and returns SVG. The composition that knows what a report is
+(`components/client/variance-chart.tsx`) sits a layer up, which is why the two
+are not in the same folder.
 
 ## CI/CD
 

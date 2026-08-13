@@ -1,20 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   DownloadIcon,
   LoaderCircleIcon,
+  RefreshCwIcon,
   ScrollTextIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
+  SparklesIcon,
+  TriangleAlertIcon,
   WalletIcon,
 } from "lucide-react";
 
 import { PageHeader, Panel } from "@/components/client/page-header";
-import { RangeField } from "@/components/client/month-field";
 import { StatTile, CountUpValue } from "@/components/client/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
+import { VarianceHero } from "@/components/client/variance-hero";
+import { ReportControls } from "@/components/client/report-controls";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
 import {
@@ -28,7 +30,7 @@ import {
   Money,
   NotLogged,
   VarianceAmount,
-  VarianceChip,
+  VarianceMeter,
   VariancePct,
 } from "@/components/client/variance";
 import {
@@ -40,12 +42,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { useCategories, useReport, downloadReportCsv } from "@/lib/hooks";
+import {
+  useCategories,
+  useGenerateReport,
+  useReport,
+  downloadReportCsv,
+} from "@/lib/hooks";
 import { currentMonth, monthShort, quarterOf } from "@/lib/utils/month";
 import type { MonthRange } from "@/lib/utils/month";
-import { formatCurrency } from "@/lib/utils/variance";
+import { formatCurrency, formatSignedCurrency } from "@/lib/utils/variance";
 import type { ReportRow } from "@/lib/api/types";
+import { cn } from "@/lib/utils/utils";
 
 /**
  * Plan vs actual, over a range.
@@ -60,6 +67,60 @@ import type { ReportRow } from "@/lib/api/types";
  *   Plan of 0 — variance % has no denominator, so it is null and reads "N/A".
  *   Never Infinity, never NaN, and never quietly 0%.
  */
+
+const computedAtLabel = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+/** Says how old the figures are, and offers the one action that fixes it. */
+function StaleNotice({
+  computedAt,
+  onRegenerate,
+  busy,
+}: Readonly<{
+  computedAt: string | null;
+  onRegenerate: () => void;
+  busy: boolean;
+}>) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      role="status"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-locked/8 px-4 py-3 text-sm ring-1 ring-locked/20"
+    >
+      <p className="flex items-start gap-2.5 leading-relaxed text-muted-foreground">
+        <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-locked" />
+        <span>
+          <span className="font-medium text-foreground">
+            These figures are out of date.
+          </span>{" "}
+          Plans, actuals or locks have changed since this was generated
+          {computedAt
+            ? ` on ${computedAtLabel.format(new Date(computedAt))}`
+            : ""}
+          .
+        </span>
+      </p>
+
+      <Button
+        variant="outline"
+        size="sm"
+        className="rounded-xl"
+        disabled={busy}
+        onClick={onRegenerate}
+      >
+        {busy ? (
+          <LoaderCircleIcon aria-hidden className="animate-spin" />
+        ) : (
+          <RefreshCwIcon aria-hidden />
+        )}
+        Regenerate
+      </Button>
+    </motion.div>
+  );
+}
 
 /** Groups rows by month, preserving the order the server sent them in. */
 function byMonth(rows: ReportRow[]): Array<[month: string, rows: ReportRow[]]> {
@@ -86,13 +147,42 @@ export default function ReportPage() {
   // filtered and unfiltered reports are separate runs rather than one
   // overwriting the other.
   const params = { ...range, ...(categoryId ? { categoryId } : {}) };
-  const report = useReport(params);
 
-  // The report may not exist yet — generation is queued, so the first answer is
-  // usually "pending" and the numbers arrive on a later poll.
-  const outcome = report.data;
-  const data = outcome?.ready ? outcome.report : undefined;
-  const progress = outcome && !outcome.ready ? outcome.progress : undefined;
+  const report = useReport(params);
+  const generate = useGenerateReport();
+
+  // Reading never generates. `none` means nothing has been produced for this
+  // range yet; a report may still be stale, and is shown anyway with its age —
+  // hiding the last known answer because a number moved leaves the user with
+  // nothing, and regenerating is one click away.
+  const data = report.report;
+  const working = generate.isPending || report.generating;
+
+  /**
+   * Months with at least one locked row. The lock lives on the month, so one
+   * locked row means the month is closed — the chart marks these on its axis.
+   */
+  const lockedMonths = useMemo(
+    () =>
+      new Set(
+        (data?.rows ?? []).filter((row) => row.locked).map((row) => row.month)
+      ),
+    [data]
+  );
+
+  /** Largest absolute row variance, so the inline meters share one scale. */
+  const meterCeiling = useMemo(
+    () =>
+      (data?.rows ?? []).reduce(
+        (peak, row) => Math.max(peak, Math.abs(row.variance)),
+        0
+      ),
+    [data]
+  );
+
+  function onGenerate() {
+    generate.mutate(params);
+  }
 
   async function onExport() {
     setExporting(true);
@@ -106,55 +196,53 @@ export default function ReportPage() {
   }
 
   return (
-    <Stagger className="space-y-8">
+    <Stagger className="space-y-6">
       <Rise>
         <PageHeader
           title="Report"
           description="Plan against actual for every category in the range, with the variance between them."
           actions={
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              disabled={exporting || !data || data.rows.length === 0}
-              onClick={onExport}
-            >
-              {exporting ? (
-                <LoaderCircleIcon className="animate-spin" />
-              ) : (
-                <DownloadIcon />
-              )}
-              Export CSV
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                disabled={exporting || !data || data.rows.length === 0}
+                onClick={onExport}
+              >
+                {exporting ? (
+                  <LoaderCircleIcon aria-hidden className="animate-spin" />
+                ) : (
+                  <DownloadIcon aria-hidden />
+                )}
+                Export CSV
+              </Button>
+
+              <Button
+                className="rounded-xl shadow-lg shadow-primary/20"
+                disabled={working}
+                onClick={onGenerate}
+              >
+                {working ? (
+                  <LoaderCircleIcon aria-hidden className="animate-spin" />
+                ) : (
+                  <SparklesIcon aria-hidden />
+                )}
+                {data ? "Regenerate" : "Generate report"}
+              </Button>
+            </>
           }
         />
       </Rise>
 
       <Rise>
-        <Panel>
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-            <RangeField value={range} onChange={setRange} anchor={anchor} />
-
-            <div className="space-y-1.5">
-              <Label htmlFor="filter" className="text-xs text-muted-foreground">
-                Category
-              </Label>
-              <select
-                id="filter"
-                value={categoryId}
-                onChange={(event) => setCategoryId(event.target.value)}
-                className="h-9 rounded-xl border border-input bg-background px-3 text-sm transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none dark:bg-input/30"
-              >
-                <option value="">All categories</option>
-                {(categories.data ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                    {category.archivedAt ? " (archived)" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </Panel>
+        <ReportControls
+          range={range}
+          onRangeChange={setRange}
+          categoryId={categoryId}
+          onCategoryChange={setCategoryId}
+          categories={categories.data ?? []}
+          anchor={anchor}
+        />
       </Rise>
 
       {report.isError && (
@@ -169,76 +257,113 @@ export default function ReportPage() {
         </Rise>
       )}
 
-      {progress && progress.status !== "failed" && (
+      {generate.isError && (
+        <Rise>
+          <ErrorState error={generate.error} onRetry={onGenerate} />
+        </Rise>
+      )}
+
+      {/* Never generated for this range. Nothing to show, so name the button. */}
+      {report.none && !generate.isPending && (
+        <Rise>
+          <Panel>
+            <EmptyState
+              icon={<ScrollTextIcon aria-hidden className="size-6" />}
+              title="No report for this range yet"
+              description="Reports are generated on request rather than on every visit. Generate one to see plan against actual for these months."
+              action={
+                <Button className="rounded-xl" onClick={onGenerate}>
+                  <SparklesIcon aria-hidden />
+                  Generate report
+                </Button>
+              }
+            />
+          </Panel>
+        </Rise>
+      )}
+
+      {/* Only while there is nothing to look at — a regenerate keeps the old
+          figures on screen, with the stale notice above them. */}
+      {working && !data && (
         <Rise>
           <GeneratingState />
         </Rise>
       )}
 
-      {progress?.status === "failed" && (
+      {report.failure && !generate.isPending && (
         <Rise>
-          <ErrorState
-            error={new ApiError(500, progress.error ?? "The report failed to generate")}
-            onRetry={() => report.refetch()}
+          <ErrorState error={new ApiError(500, report.failure)} onRetry={onGenerate} />
+        </Rise>
+      )}
+
+      {report.stale && (
+        <Rise>
+          <StaleNotice
+            computedAt={report.computedAt}
+            onRegenerate={onGenerate}
+            busy={working}
           />
         </Rise>
       )}
 
       {data && (
         <>
+          {/* One headline figure, then the supporting ones — rather than four
+              tiles of equal weight that leave the reader to rank them. */}
           <Rise>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatTile
-                label="Total plan"
-                icon={<WalletIcon className="size-4" />}
-                value={
-                  <CountUpValue to={data.totals.plan} format={formatCurrency} />
-                }
-                hint={`${data.byMonth.length} month${data.byMonth.length === 1 ? "" : "s"} in range`}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1.6fr)]">
+              <VarianceHero
+                plan={data.totals.plan}
+                actual={data.totals.actual}
+                variance={data.totals.variance}
+                variancePct={data.totals.variancePct}
               />
-              <StatTile
-                label="Total actual"
-                accent="info"
-                icon={<ScrollTextIcon className="size-4" />}
-                value={
-                  <CountUpValue to={data.totals.actual} format={formatCurrency} />
-                }
-                hint="Missing entries counted as $0"
-              />
-              <StatTile
-                label="Net variance"
-                accent={data.totals.variance > 0 ? "unfavorable" : "favorable"}
-                icon={
-                  data.totals.variance > 0 ? (
-                    <TrendingUpIcon className="size-4" />
-                  ) : (
-                    <TrendingDownIcon className="size-4" />
-                  )
-                }
-                value={<VarianceAmount value={data.totals.variance} />}
-                hint={
-                  <VarianceChip
-                    variance={data.totals.variance}
-                    variancePct={data.totals.variancePct}
-                  />
-                }
-              />
-              <StatTile
-                label="Categories"
-                accent="locked"
-                icon={<ScrollTextIcon className="size-4" />}
-                value={new Set(data.rows.map((r) => r.categoryId)).size}
-                hint="With a plan or an actual in range"
-              />
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatTile
+                  label="Total plan"
+                  icon={<WalletIcon aria-hidden className="size-4" />}
+                  value={
+                    <CountUpValue to={data.totals.plan} format={formatCurrency} />
+                  }
+                  hint={`${data.byMonth.length} month${data.byMonth.length === 1 ? "" : "s"} in range`}
+                />
+                <StatTile
+                  label="Total actual"
+                  accent="info"
+                  icon={<ScrollTextIcon aria-hidden className="size-4" />}
+                  value={
+                    <CountUpValue to={data.totals.actual} format={formatCurrency} />
+                  }
+                  hint="Missing entries counted as $0"
+                />
+                <StatTile
+                  label="Generated"
+                  accent={report.stale ? "locked" : "favorable"}
+                  icon={<RefreshCwIcon aria-hidden className="size-4" />}
+                  value={
+                    <span className="text-base font-medium">
+                      {report.computedAt
+                        ? computedAtLabel.format(new Date(report.computedAt))
+                        : "—"}
+                    </span>
+                  }
+                  hint={
+                    report.stale
+                      ? "Out of date — regenerate to refresh"
+                      : `${new Set(data.rows.map((row) => row.categoryId)).size} categories in range`
+                  }
+                />
+              </div>
             </div>
           </Rise>
 
           <Rise>
             <Panel
-              title="Net variance by month"
-              description="Above the line is over plan; below it is under."
+              title="Plan against actual"
+              description="Trend shows both series with the gap shaded by its sign; Variance shows the gap alone."
             >
-              <VarianceChart months={data.byMonth} />
+              <VarianceChart months={data.byMonth} lockedMonths={lockedMonths} />
             </Panel>
           </Rise>
 
@@ -250,7 +375,7 @@ export default function ReportPage() {
             >
               {data.rows.length === 0 ? (
                 <EmptyState
-                  icon={<ScrollTextIcon className="size-6" />}
+                  icon={<ScrollTextIcon aria-hidden className="size-6" />}
                   title="Nothing in this range"
                   description="No plans or actuals fall between these months. Widen the range, or set a target to get started."
                 />
@@ -263,62 +388,104 @@ export default function ReportPage() {
                         <TableHead className="text-right">Plan</TableHead>
                         <TableHead className="text-right">Actual</TableHead>
                         <TableHead className="text-right">Variance</TableHead>
+                        <TableHead className="w-20 text-center">
+                          <span className="sr-only">Variance scale</span>
+                        </TableHead>
                         <TableHead className="text-right">Variance %</TableHead>
                       </TableRow>
                     </TableHeader>
 
                     <TableBody>
                       <AnimatePresence initial={false}>
-                        {byMonth(data.rows).flatMap(([month, rows]) => [
-                          <motion.tr
-                            key={`head-${month}`}
-                            {...rowMotion}
-                            className="bg-muted/40"
-                          >
-                            <TableCell colSpan={5} className="py-2">
-                              <span className="flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
-                                {monthShort(month)}
-                                {/* The lock lives on the month, so one row
-                                    being locked means the month is. */}
-                                <LockPill
-                                  month={month}
-                                  locked={rows.some((row) => row.locked)}
-                                />
-                              </span>
-                            </TableCell>
-                          </motion.tr>,
+                        {byMonth(data.rows).flatMap(([month, rows]) => {
+                          // Subtotals are computed here rather than read off
+                          // `byMonth`: that array covers the whole range, and
+                          // these rows may be filtered to one category.
+                          const subtotal = rows.reduce(
+                            (sums, row) => ({
+                              plan: sums.plan + row.plan,
+                              actual: sums.actual + row.actual,
+                              variance: sums.variance + row.variance,
+                            }),
+                            { plan: 0, actual: 0, variance: 0 }
+                          );
 
-                          ...rows.map((row) => (
+                          return [
                             <motion.tr
-                              key={`${month}-${row.categoryId}`}
+                              key={`head-${month}`}
                               {...rowMotion}
-                              className="border-b transition-colors hover:bg-muted/40"
+                              className="border-b bg-muted/50"
                             >
-                              <TableCell className="font-medium">
-                                {row.categoryName}
+                              <TableCell colSpan={3} className="py-2">
+                                <span className="flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                                  {monthShort(month)}
+                                  <LockPill
+                                    month={month}
+                                    locked={rows.some((row) => row.locked)}
+                                  />
+                                </span>
                               </TableCell>
-                              <TableCell className="text-right">
-                                <Money value={row.plan} />
+                              <TableCell
+                                colSpan={3}
+                                className="py-2 text-right text-xs"
+                              >
+                                <span className="text-muted-foreground">
+                                  month net{" "}
+                                </span>
+                                <span
+                                  data-numeric
+                                  className={cn(
+                                    "tabular font-medium",
+                                    subtotal.variance === 0 &&
+                                      "text-muted-foreground",
+                                    subtotal.variance > 0 && "text-unfavorable",
+                                    subtotal.variance < 0 && "text-favorable"
+                                  )}
+                                >
+                                  {formatSignedCurrency(subtotal.variance)}
+                                </span>
                               </TableCell>
-                              <TableCell className="text-right">
-                                {row.hasActual ? (
-                                  <Money value={row.actual} />
-                                ) : (
-                                  <NotLogged />
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <VarianceAmount value={row.variance} />
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <VariancePct
-                                  value={row.variancePct}
-                                  variance={row.variance}
-                                />
-                              </TableCell>
-                            </motion.tr>
-                          )),
-                        ])}
+                            </motion.tr>,
+
+                            ...rows.map((row) => (
+                              <motion.tr
+                                key={`${month}-${row.categoryId}`}
+                                {...rowMotion}
+                                className="border-b transition-colors hover:bg-muted/40"
+                              >
+                                <TableCell className="font-medium">
+                                  {row.categoryName}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Money value={row.plan} />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {row.hasActual ? (
+                                    <Money value={row.actual} />
+                                  ) : (
+                                    <NotLogged />
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <VarianceAmount value={row.variance} />
+                                </TableCell>
+                                <TableCell>
+                                  <VarianceMeter
+                                    value={row.variance}
+                                    ceiling={meterCeiling}
+                                    className="mx-auto"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <VariancePct
+                                    value={row.variancePct}
+                                    variance={row.variance}
+                                  />
+                                </TableCell>
+                              </motion.tr>
+                            )),
+                          ];
+                        })}
                       </AnimatePresence>
                     </TableBody>
                   </Table>

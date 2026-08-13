@@ -120,6 +120,51 @@ export function VarianceChip({
   );
 }
 
+/**
+ * A row's variance as a mark either side of a centre line.
+ *
+ * Scaled against the largest variance in the table, not against the row's own
+ * plan, so the marks are comparable down the column — that shared scale is the
+ * whole reason to draw them rather than read the numbers, which are right
+ * there in the next cell.
+ *
+ * Decorative in the accessibility sense: the figure it encodes is already in
+ * the adjacent column, so it is hidden rather than announced twice.
+ */
+export function VarianceMeter({
+  value,
+  ceiling,
+  className,
+}: Readonly<{ value: number; ceiling: number; className?: string }>) {
+  const tone = toneOf(value);
+  const extent = ceiling > 0 ? Math.min(Math.abs(value) / ceiling, 1) * 50 : 0;
+
+  return (
+    <span
+      aria-hidden
+      className={cn("relative flex h-4 w-16 items-center", className)}
+    >
+      <span className="absolute inset-x-0 h-px bg-border" />
+      <span className="absolute left-1/2 h-3 w-px -translate-x-1/2 bg-border" />
+
+      {value !== 0 && (
+        <span
+          className={cn(
+            "absolute h-1.5 rounded-full",
+            tone === "unfavorable" ? "bg-mark-unfavorable" : "bg-mark-favorable"
+          )}
+          style={{
+            // Over plan grows right of centre, under plan grows left — the
+            // same orientation the variance bar chart uses.
+            left: tone === "unfavorable" ? "50%" : `${50 - extent}%`,
+            width: `${Math.max(extent, 2)}%`,
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
 /** Plain money, for the plan and actual columns. */
 export function Money({
   value,

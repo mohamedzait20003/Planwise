@@ -250,3 +250,92 @@ consistency would have broken every screen.
 **Guarded by.** `variance.test.ts` and `report-service.test.ts` assert the same
 brief figures against the two implementations independently, so a drift turns one
 suite red while the other stays green.
+
+---
+
+## 16 · d3 computes, React renders
+
+**Decision.** `d3-scale`, `d3-shape` and `d3-array` for the maths. **No
+`d3-selection`, no `d3-transition`.** React owns every node.
+
+**Why.** Three things are genuinely hard to hand-roll and easy to get subtly
+wrong:
+
+- **`curveMonotoneX` cannot overshoot.** A Catmull-Rom or cardinal spline bulges
+  between points, and an overshoot on a spend chart draws a month that costs
+  more than any month cost. Monotone interpolation is bounded by the data it
+  joins.
+- **`.nice()` and `.ticks()`** put axis labels on round numbers when the domain
+  is 19,431–24,908.
+- **`area().y0().y1()`** gives the plan-against-actual band directly.
+
+The DOM half of d3 is the part that fights React — two libraries reconciling the
+same nodes — and none of the above needs it.
+
+**Cost.** 29.3 kB minified, 11.0 kB gzipped, measured with esbuild over exactly
+these imports. A full charting library was the alternative and is roughly an
+order of magnitude larger before it is themed.
+
+**Considered and rejected.** Recharts and Chart.js. Both would have replaced the
+existing chart wholesale and neither takes the design tokens without a fight.
+
+---
+
+## 17 · Two charts, two baseline rules
+
+**Decision.** The trend chart's y axis does **not** start at zero. The variance
+bar chart's does.
+
+**Why.** A line encodes position and slope, so a truncated axis reads
+accurately. A bar encodes magnitude as length from a baseline, so moving that
+baseline rescales every bar into a lie.
+
+Zeroing the trend axis would flatten a $200 variance against a $20,000 plan into
+nothing — which is the one thing the chart exists to show. Not zeroing the bar
+axis would make a $500 saving and a $500 overspend draw different lengths.
+
+**Also.** The bar domain is made symmetric around zero, so the two directions
+stay comparable when one month is an outlier.
+
+**Cost.** Two rules to remember, and the trend axis has to be read rather than
+eyeballed. The axis labels carry real values for exactly that reason.
+
+---
+
+## 18 · Category colours avoid the semantic hues
+
+**Decision.** Category chips draw from `--cat-1`…`--cat-6`, confined to hues
+195–330. Assigned by hashing the category **id**.
+
+**Why.** Emerald 162, rose 22 and amber 65 already mean favorable, unfavorable
+and locked. A category tinted emerald reads as "under plan" before its name is
+read. Hashing the id rather than the name means renaming does not repaint it —
+a colour that changes cannot be learned.
+
+**Cost.** Six slots, so categories collide past six. Collision is cosmetic: the
+name is always beside the chip and the chip is `aria-hidden`.
+
+**Guarded by.** Lightness is set per hue rather than shared — cyan and teal are
+light enough that a common step lands near 3.5:1. Each value is the lightest
+step that still clears 4.8:1 as text on its own 12% chip; all twelve
+combinations were measured in both themes.
+
+---
+
+## 19 · The chart's month stepper is buttons
+
+**Decision.** Selecting a month on the chart is two real `<button>`s beside the
+readout. Not arrow keys on the plot.
+
+**Why.** The first cut put `tabIndex` and a key handler on the plot container
+with `role="img"`. That is a non-interactive element carrying interactive
+behaviour, and the affordance was invisible enough that the placeholder text had
+to announce it — which is the tell that nobody would find it. Touch users had no
+way to step through months at all.
+
+**Cost.** Two more controls on screen. The readout is `aria-live`, so the figures
+are announced as the selection moves either way.
+
+**Also.** The plot itself is `aria-hidden`; the numbers reach assistive tech
+through a screen-reader data table of the plotted months, which is the honest
+non-visual equivalent of a chart rather than a label describing one.

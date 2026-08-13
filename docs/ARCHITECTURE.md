@@ -160,6 +160,32 @@ invalidateQueries({ queryKey: reportKeys.all })  // every range, without listing
 the stored run stale, so a cached report is the one thing that must never be
 served without asking.
 
+## Charts
+
+One boundary, and it is the reason d3 is here at all:
+
+```
+components/client/variance-chart.tsx   knows what a report is
+  ├─ holds the selected month and the view toggle
+  └─ components/charts/                knows points, scales and marks
+       trend-chart    d3-shape line/area + clip paths for the signed band
+       variance-bars  d3-scale band/linear, zeroed and symmetric
+       chart-kit      axes, grid, legend, readout, screen-reader table
+```
+
+**d3 computes; React renders.** `d3-scale`, `d3-shape` and `d3-array` are used
+for scales, path strings and tick values. `d3-selection` and `d3-transition` are
+not used at all — they would put a second library in charge of nodes React is
+already reconciling.
+
+Charts take `points` and a `width` and return SVG. They do no fetching and know
+nothing about queries, which is what lets the same pair render on the dashboard's
+six-month window and the report's arbitrary range with no branching.
+
+Width comes from a `ResizeObserver` rather than a `viewBox`. An SVG that scales
+itself scales its type and stroke widths too, so 11px axis labels become 7px on a
+narrow card — the difference between a resized picture and a responsive chart.
+
 ## Where the rules live
 
 Each product rule has exactly one home:
@@ -171,6 +197,7 @@ Each product rule has exactly one home:
 | Ownership | the `WHERE` clause of every repository method |
 | Category usable? | `CategoryService.requireWritable` |
 | CSV shape | `readHeader` + `parseImportRow` |
+| Category identity colour | `lib/utils/category-color.ts`, keyed on id |
 
 The variance rule is the one duplication, and it is deliberate: the client
 formats without a round trip, the server computes what it stores. Both are

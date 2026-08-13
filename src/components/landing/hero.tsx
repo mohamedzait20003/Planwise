@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRightIcon, CircleCheckIcon, SparklesIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowRightIcon, CircleCheckIcon, SparklesIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ReportPreview } from "./report-preview";
-import { CountUp } from "./motion-primitives";
+import { VarianceRibbon } from "./variance-ribbon";
+import { CountUp, Tilt, WordReveal } from "./motion-primitives";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
@@ -19,6 +20,19 @@ const container = {
   hidden: {},
   show: { transition: { staggerChildren: 0.1, delayChildren: 0.15 } },
 };
+
+const proof = [
+  { value: 75, prefix: "$", suffix: "k", label: "Planned, Q1" },
+  { value: 69.65, prefix: "$", suffix: "k", label: "Actual", decimals: 2 },
+  {
+    value: -7.13,
+    suffix: "%",
+    label: "Net variance",
+    decimals: 2,
+    tone: "text-favorable",
+  },
+  { value: 1, label: "Period locked" },
+];
 
 export function Hero() {
   return (
@@ -48,19 +62,22 @@ export function Hero() {
       >
         <motion.div variants={rise} className="flex justify-center">
           <span className="ring-shimmer inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3.5 py-1.5 text-xs font-medium backdrop-blur">
-            <SparklesIcon className="size-3.5 text-primary" />
+            <SparklesIcon aria-hidden className="size-3.5 text-primary" />
             Targets, actuals, and the gap between them
           </span>
         </motion.div>
 
-        <motion.h1
-          variants={rise}
-          className="mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl"
-        >
-          Know the{" "}
-          <span className="font-display text-gradient italic">variance</span>{" "}
-          before the quarter closes
-        </motion.h1>
+        {/* The headline animates per word rather than as a block, so the
+            sentence assembles in reading order. `rise` is not applied here —
+            WordReveal owns its own timing. */}
+        <h1 className="mt-6 text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
+          <WordReveal
+            text="Know the variance before the quarter closes"
+            accent="variance"
+            accentClassName="font-display text-gradient italic"
+            delay={0.25}
+          />
+        </h1>
 
         <motion.p
           variants={rise}
@@ -82,16 +99,23 @@ export function Hero() {
             render={<Link href="/auth/sign-up" />}
           >
             Start tracking
-            <ArrowRightIcon className="transition-transform duration-300 group-hover/button:translate-x-0.5" />
+            <ArrowRightIcon
+              aria-hidden
+              className="transition-transform duration-300 group-hover/button:translate-x-0.5"
+            />
           </Button>
           <Button
             variant="outline"
             size="lg"
             className="h-11 rounded-full px-6 text-sm"
             nativeButton={false}
-            render={<Link href="#report" />}
+            render={<Link href="#how" />}
           >
-            See a live report
+            See how it works
+            <ArrowDownIcon
+              aria-hidden
+              className="transition-transform duration-300 group-hover/button:translate-y-0.5"
+            />
           </Button>
         </motion.div>
 
@@ -99,42 +123,49 @@ export function Hero() {
           variants={rise}
           className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"
         >
-          <CircleCheckIcon className="size-3 text-favorable" />
+          <CircleCheckIcon aria-hidden className="size-3 text-favorable" />
           Free to use — no tiers, no card required
         </motion.div>
       </motion.div>
 
-      {/* ---- The product, reflected -------------------------------------- */}
-      <div className="relative mx-auto mt-16 max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: 40, rotateX: 10 }}
-          animate={{ opacity: 1, y: 0, rotateX: 0 }}
-          transition={{ duration: 1.1, delay: 0.5, ease: EASE_OUT }}
-          style={{ perspective: 1200 }}
-        >
-          <ReportPreview />
-        </motion.div>
-
-        {/* Mirror image beneath the card — cropped to a shallow slice */}
-        <div aria-hidden className="h-28 overflow-hidden">
-          <ReportPreview className="reflect" />
-        </div>
-
-        {/* Contact shadow so the card sits on the page instead of floating */}
+      {/* ---- The idea, then the product ---------------------------------- */}
+      <div className="relative mt-16">
+        {/* The ribbon runs wider than the card and sits behind it: the concept
+            at wall size, with the concrete report resting on top of it. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-4 left-1/2 h-16 w-2/3 -translate-x-1/2 rounded-[50%] bg-primary/20 blur-3xl"
-        />
+          className="pointer-events-none absolute inset-x-0 -top-8 -z-10 h-80 mask-[linear-gradient(to_right,transparent,black_18%,black_82%,transparent)] opacity-70"
+        >
+          <VarianceRibbon />
+        </div>
+
+        <div className="relative mx-auto max-w-4xl">
+          <Tilt max={4}>
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1.1, delay: 0.5, ease: EASE_OUT }}
+            >
+              <ReportPreview />
+            </motion.div>
+          </Tilt>
+
+          {/* Mirror image beneath the card — cropped to a shallow slice */}
+          <div aria-hidden className="h-28 overflow-hidden">
+            <ReportPreview className="reflect" />
+          </div>
+
+          {/* Contact shadow so the card sits on the page instead of floating */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-4 left-1/2 h-16 w-2/3 -translate-x-1/2 rounded-[50%] bg-primary/20 blur-3xl"
+          />
+        </div>
       </div>
 
       {/* ---- Proof strip -------------------------------------------------- */}
       <div className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-6 sm:grid-cols-4">
-        {[
-          { value: 75, prefix: "$", suffix: "k", label: "Planned, Q1" },
-          { value: 69.65, prefix: "$", suffix: "k", label: "Actual", decimals: 2 },
-          { value: -7.13, suffix: "%", label: "Net variance", decimals: 2, tone: "text-favorable" },
-          { value: 1, label: "Period locked" },
-        ].map(({ value, label, prefix, suffix, decimals, tone }, i) => (
+        {proof.map(({ value, label, prefix, suffix, decimals, tone }, i) => (
           <motion.div
             key={label}
             className="text-center"

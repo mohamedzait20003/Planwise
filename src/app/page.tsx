@@ -1,6 +1,7 @@
 import type { FC } from "react";
 
 import { Hero } from "@/components/landing/hero";
+import { TickerStrip } from "@/components/landing/ticker-strip";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { ReportSection } from "@/components/landing/report-section";
 import { LockingSection } from "@/components/landing/locking-section";
@@ -11,6 +12,7 @@ const RootPage: FC = () => {
   return (
     <div className="relative">
       <Hero />
+      <TickerStrip />
       <HowItWorks />
       <ReportSection />
       <LockingSection />

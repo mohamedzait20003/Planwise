@@ -56,6 +56,13 @@
     --color-mark-actual: var(--mark-actual);
     --color-mark-favorable: var(--mark-favorable);
     --color-mark-unfavorable: var(--mark-unfavorable);
+
+    --color-cat-1: var(--cat-1);
+    --color-cat-2: var(--cat-2);
+    --color-cat-3: var(--cat-3);
+    --color-cat-4: var(--cat-4);
+    --color-cat-5: var(--cat-5);
+    --color-cat-6: var(--cat-6);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);
@@ -88,6 +95,7 @@
     --animate-marquee: marquee 42s linear infinite;
     --animate-draw: draw 1.6s cubic-bezier(0.65, 0, 0.35, 1) forwards;
     --animate-ticker: ticker 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-refuse: refuse 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
 :root {
@@ -151,6 +159,24 @@
     --mark-favorable: oklch(0.60 0.15 162);
     --mark-unfavorable: oklch(0.44 0.185 22);
 
+    /* Category identity chips — decorative, assigned by hashing a category id.
+       Confined to the 195–330 hue band on purpose: emerald 162, rose 22 and
+       amber 65 are spoken for by favorable / unfavorable / locked, and a
+       category tinted emerald would read as "under plan" before its name is
+       read. Colour is never the only signal here — the name and the archived
+       pill carry the meaning; these only make a long grid scannable.
+
+       Lightness is set per hue rather than shared: the monogram is drawn in
+       the same colour as its own 12% chip, and cyan and teal are light enough
+       at a common step to land near 3.5:1. Each value is the lightest step
+       that still clears 4.8:1 on its own chip. */
+    --cat-1: oklch(0.525 0.185 274);
+    --cat-2: oklch(0.485 0.125 218);
+    --cat-3: oklch(0.53 0.175 305);
+    --cat-4: oklch(0.505 0.155 250);
+    --cat-5: oklch(0.49 0.105 196);
+    --cat-6: oklch(0.53 0.165 330);
+
     --sidebar: oklch(0.985 0.004 264);
     --sidebar-foreground: oklch(0.205 0.025 267);
     --sidebar-primary: oklch(0.515 0.21 274);
@@ -212,6 +238,15 @@
     --mark-actual: oklch(0.645 0.125 218);
     --mark-favorable: oklch(0.665 0.15 163);
     --mark-unfavorable: oklch(0.545 0.185 22);
+
+    /* Lifted, not inverted — the light steps sit below the band that reads as
+       a tint on the dark card. */
+    --cat-1: oklch(0.70 0.155 276);
+    --cat-2: oklch(0.735 0.105 218);
+    --cat-3: oklch(0.70 0.145 305);
+    --cat-4: oklch(0.71 0.13 250);
+    --cat-5: oklch(0.725 0.09 196);
+    --cat-6: oklch(0.71 0.14 330);
 
     --sidebar: oklch(0.212 0.022 268);
     --sidebar-foreground: oklch(0.965 0.006 265);
@@ -302,6 +337,29 @@
         opacity: 0.35;
         filter: blur(0.7px);
         pointer-events: none;
+    }
+
+    /* A word that rises out of its own clipped box. The wrapper hides the
+       overflow; the inner span is what actually moves, so the letters appear
+       to be uncovered rather than to fade in. */
+    .word-mask {
+        display: inline-block;
+        overflow: hidden;
+        vertical-align: bottom;
+        /* Descenders (g, y, q) would be clipped by an overflow box sized to
+           the line box, so the mask is padded and pulled back. */
+        padding-bottom: 0.16em;
+        margin-bottom: -0.16em;
+    }
+
+    /* Diagonal hatch — marks the area between plan and actual as "the gap"
+       without spending a colour on it. */
+    .bg-hatch {
+        background-image: repeating-linear-gradient(
+            -45deg,
+            color-mix(in oklch, var(--foreground), transparent 92%) 0 1px,
+            transparent 1px 7px
+        );
     }
 
     /* Hairline grid backdrop */
@@ -422,6 +480,25 @@
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+/* A rejected write. Small and quick — this reads as "the field pushed back",
+   not as decoration. */
+@keyframes refuse {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    15%,
+    45%,
+    75% {
+        transform: translateX(-4px);
+    }
+    30%,
+    60%,
+    90% {
+        transform: translateX(4px);
     }
 }
 

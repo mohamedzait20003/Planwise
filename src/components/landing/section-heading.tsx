@@ -1,14 +1,32 @@
 import { Badge } from "@/components/ui/badge";
 import { Reveal } from "./motion-primitives";
+import { cn } from "@/lib/utils/utils";
 
-/** Shared centred heading block: eyebrow badge, title, optional lede. */
+/** Shared heading block: eyebrow badge, title, optional lede. */
 export function SectionHeading({
   eyebrow,
   title,
   children,
-}: Readonly<{ eyebrow: string; title: string; children?: React.ReactNode }>) {
+  align = "center",
+  className,
+}: Readonly<{
+  eyebrow: string;
+  title: string;
+  children?: React.ReactNode;
+  /** `start` is for sections whose heading sits in a column beside content. */
+  align?: "center" | "start";
+  className?: string;
+}>) {
+  const centered = align === "center";
+
   return (
-    <Reveal className="mx-auto max-w-2xl text-center">
+    <Reveal
+      className={cn(
+        "max-w-2xl",
+        centered ? "mx-auto text-center" : "text-left",
+        className
+      )}
+    >
       <Badge
         variant="secondary"
         className="mb-4 h-6 px-3 text-[11px] tracking-wide uppercase"

@@ -1,20 +1,23 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowRightIcon,
+  LoaderCircleIcon,
   ReceiptTextIcon,
+  RefreshCwIcon,
   ScrollTextIcon,
   TagsIcon,
   TargetIcon,
-  TrendingDownIcon,
-  TrendingUpIcon,
   WalletIcon,
 } from "lucide-react";
 
 import { PageHeader, Panel } from "@/components/client/page-header";
 import { StatTile, CountUpValue } from "@/components/client/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
+import { VarianceHero } from "@/components/client/variance-hero";
+import { TopMovers } from "@/components/client/top-movers";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger } from "@/components/client/motion";
 import {
@@ -23,9 +26,9 @@ import {
   GeneratingState,
   LoadingRows,
 } from "@/components/client/states";
-import { Money, VarianceAmount, VarianceChip } from "@/components/client/variance";
+import { Money, VarianceAmount } from "@/components/client/variance";
 import { Button } from "@/components/ui/button";
-import { useCategories, useLocks, useReport } from "@/lib/hooks";
+import { useCategories, useGenerateReport, useLocks, useReport } from "@/lib/hooks";
 import { currentMonth, lastMonths, monthLong } from "@/lib/utils/month";
 import { formatCurrency } from "@/lib/utils/variance";
 
@@ -36,38 +39,69 @@ import { formatCurrency } from "@/lib/utils/variance";
  * out of the way. The window is the trailing six months rather than the current
  * one alone, because a single month's variance says nothing about whether it is
  * a blip or a trend, and the trend is the reason anyone opens this.
+ *
+ * One figure is the headline and the rest support it. A row of equal tiles
+ * makes the reader rank them, which is the work the screen should have done.
  */
 
 const WINDOW = 6;
 
+const jumpTo = [
+  {
+    href: "/client/plans",
+    icon: TargetIcon,
+    title: "Set targets",
+    description: "One monthly amount per category.",
+  },
+  {
+    href: "/client/actuals",
+    icon: ReceiptTextIcon,
+    title: "Log spend",
+    description: "Add an entry, or import a CSV.",
+  },
+  {
+    href: "/client/report",
+    icon: ScrollTextIcon,
+    title: "Run the report",
+    description: "Any range, with variance and export.",
+  },
+  {
+    href: "/client/categories",
+    icon: TagsIcon,
+    title: "Categories",
+    description: "Add, rename, or archive.",
+  },
+];
+
 function QuickLink({
   href,
-  icon,
+  icon: Icon,
   title,
   description,
 }: Readonly<{
   href: string;
-  icon: React.ReactNode;
+  icon: typeof TargetIcon;
   title: string;
   description: string;
 }>) {
   return (
     <Link
       href={href}
-      className="group surface-glass flex items-start gap-4 rounded-2xl border border-border/60 p-4 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 text-primary ring-1 ring-primary/15 transition-transform group-hover:scale-105">
-        {icon}
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/8 text-primary ring-1 ring-primary/15 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        <Icon aria-hidden className="size-4" />
       </span>
-      <div className="min-w-0 space-y-0.5">
-        <p className="flex items-center gap-1.5 font-medium">
-          {title}
-          <ArrowRightIcon className="size-3.5 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-60" />
-        </p>
-        <p className="text-xs leading-relaxed text-muted-foreground">
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">
           {description}
-        </p>
-      </div>
+        </span>
+      </span>
+      <ArrowRightIcon
+        aria-hidden
+        className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-70"
+      />
     </Link>
   );
 }
@@ -77,13 +111,13 @@ export default function DashboardPage() {
   const range = lastMonths(thisMonth, WINDOW);
 
   const report = useReport(range);
+  const generate = useGenerateReport();
   const locks = useLocks();
   const categories = useCategories();
 
-  // Generation is queued, so the numbers may not exist yet on a first load.
-  const outcome = report.data;
-  const data = outcome?.ready ? outcome.report : undefined;
-  const generating = outcome !== undefined && !outcome.ready;
+  // Reading never generates, so this window may simply have no report yet.
+  const data = report.report;
+  const generating = generate.isPending || report.generating;
 
   const locked = (locks.data ?? []).some((lock) => lock.month === thisMonth);
   const activeCategories = (categories.data ?? []).filter(
@@ -96,17 +130,80 @@ export default function DashboardPage() {
   const currentPct =
     current && current.plan !== 0 ? (current.variance / current.plan) * 100 : null;
 
+  const currentRows = useMemo(
+    () => (data?.rows ?? []).filter((row) => row.month === thisMonth),
+    [data, thisMonth]
+  );
+
+  const lockedMonths = useMemo(
+    () =>
+      new Set(
+        (data?.rows ?? []).filter((row) => row.locked).map((row) => row.month)
+      ),
+    [data]
+  );
+
   const empty = data?.rows.length === 0;
 
   return (
-    <Stagger className="space-y-8">
+    <Stagger className="space-y-6">
       <Rise>
         <PageHeader
           title="Dashboard"
           description={`${monthLong(thisMonth)} against plan, and how the last ${WINDOW} months have run.`}
-          actions={<LockPill month={thisMonth} locked={locked} />}
+          actions={
+            <>
+              <LockPill month={thisMonth} locked={locked} />
+              {!report.none && !report.isPending && (
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  disabled={generating}
+                  onClick={() => generate.mutate(range)}
+                >
+                  {generating ? (
+                    <LoaderCircleIcon aria-hidden className="animate-spin" />
+                  ) : (
+                    <RefreshCwIcon aria-hidden />
+                  )}
+                  Refresh
+                </Button>
+              )}
+            </>
+          }
         />
       </Rise>
+
+      {/* No report for this window yet. The dashboard reads the same stored run
+          as the report page, so generating here fills both. */}
+      {report.none && !generating && (
+        <Rise>
+          <Panel>
+            <EmptyState
+              icon={<RefreshCwIcon aria-hidden className="size-6" />}
+              title="No report yet"
+              description={`Reports are generated on request. Build one for the last ${WINDOW} months to see how you are tracking.`}
+              action={
+                <Button
+                  className="rounded-xl"
+                  onClick={() => generate.mutate(range)}
+                >
+                  Generate report
+                </Button>
+              }
+            />
+          </Panel>
+        </Rise>
+      )}
+
+      {report.stale && (
+        <Rise>
+          <p className="flex items-center gap-2 rounded-xl bg-locked/8 px-4 py-3 text-sm text-muted-foreground ring-1 ring-locked/20">
+            <RefreshCwIcon aria-hidden className="size-4 shrink-0 text-locked" />
+            These figures are out of date — refresh to recompute them.
+          </p>
+        </Rise>
+      )}
 
       {report.isError && (
         <Rise>
@@ -130,7 +227,7 @@ export default function DashboardPage() {
         <Rise>
           <Panel>
             <EmptyState
-              icon={<TargetIcon className="size-6" />}
+              icon={<TargetIcon aria-hidden className="size-6" />}
               title="Nothing to compare yet"
               description="Plan vs actual needs both halves. Create a category, set a target for this month, then log what you spend against it."
               action={
@@ -160,61 +257,60 @@ export default function DashboardPage() {
       {data && !empty && (
         <>
           <Rise>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatTile
-                label={`Plan · ${monthLong(thisMonth)}`}
-                icon={<TargetIcon className="size-4" />}
-                value={
-                  <CountUpValue to={current?.plan ?? 0} format={formatCurrency} />
-                }
-                hint={`${activeCategories} active ${activeCategories === 1 ? "category" : "categories"}`}
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1.6fr)]">
+              <VarianceHero
+                label={monthLong(thisMonth)}
+                plan={current?.plan ?? 0}
+                actual={current?.actual ?? 0}
+                variance={current?.variance ?? 0}
+                variancePct={currentPct}
               />
-              <StatTile
-                label="Actual this month"
-                accent="info"
-                icon={<ReceiptTextIcon className="size-4" />}
-                value={
-                  <CountUpValue to={current?.actual ?? 0} format={formatCurrency} />
-                }
-                hint="Missing entries counted as $0"
-              />
-              <StatTile
-                label="Variance this month"
-                accent={(current?.variance ?? 0) > 0 ? "unfavorable" : "favorable"}
-                icon={
-                  (current?.variance ?? 0) > 0 ? (
-                    <TrendingUpIcon className="size-4" />
-                  ) : (
-                    <TrendingDownIcon className="size-4" />
-                  )
-                }
-                value={<VarianceAmount value={current?.variance ?? 0} />}
-                hint={
-                  <VarianceChip
-                    variance={current?.variance ?? 0}
-                    variancePct={currentPct}
-                  />
-                }
-              />
-              <StatTile
-                label={`Net · last ${WINDOW} months`}
-                accent={data.totals.variance > 0 ? "unfavorable" : "favorable"}
-                icon={<WalletIcon className="size-4" />}
-                value={<VarianceAmount value={data.totals.variance} />}
-                hint={
-                  <span className="flex items-center gap-1.5">
-                    <Money value={data.totals.actual} muted /> of{" "}
-                    <Money value={data.totals.plan} muted /> planned
-                  </span>
-                }
-              />
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <StatTile
+                  label="Plan this month"
+                  icon={<TargetIcon aria-hidden className="size-4" />}
+                  value={
+                    <CountUpValue to={current?.plan ?? 0} format={formatCurrency} />
+                  }
+                  hint={`${activeCategories} active ${activeCategories === 1 ? "category" : "categories"}`}
+                />
+                <StatTile
+                  label="Actual this month"
+                  accent="info"
+                  icon={<ReceiptTextIcon aria-hidden className="size-4" />}
+                  value={
+                    <CountUpValue
+                      to={current?.actual ?? 0}
+                      format={formatCurrency}
+                    />
+                  }
+                  hint="Missing entries counted as $0"
+                />
+                <StatTile
+                  label={`Net · last ${WINDOW} months`}
+                  accent={data.totals.variance > 0 ? "unfavorable" : "favorable"}
+                  icon={<WalletIcon aria-hidden className="size-4" />}
+                  value={<VarianceAmount value={data.totals.variance} />}
+                  hint={
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <Money value={data.totals.actual} muted />
+                      <span>of</span>
+                      <Money value={data.totals.plan} muted />
+                      <span>planned</span>
+                    </span>
+                  }
+                />
+              </div>
             </div>
           </Rise>
 
+          {/* The one thing a dashboard owes you that a chart cannot: which
+              categories to go and look at. */}
           <Rise>
             <Panel
-              title={`Net variance · last ${WINDOW} months`}
-              description="Above the line is over plan; below it is under."
+              title="Furthest from plan"
+              description={`By absolute variance in ${monthLong(thisMonth)}.`}
               actions={
                 <Button
                   variant="ghost"
@@ -224,43 +320,33 @@ export default function DashboardPage() {
                   render={<Link href="/client/report" />}
                 >
                   Full report
-                  <ArrowRightIcon />
+                  <ArrowRightIcon aria-hidden />
                 </Button>
               }
             >
-              <VarianceChart months={data.byMonth} />
+              <TopMovers rows={currentRows} />
+            </Panel>
+          </Rise>
+
+          <Rise>
+            <Panel
+              title={`Last ${WINDOW} months`}
+              description="Trend shows both series with the gap shaded by its sign; Variance shows the gap alone."
+            >
+              <VarianceChart months={data.byMonth} lockedMonths={lockedMonths} />
             </Panel>
           </Rise>
         </>
       )}
 
       <Rise>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickLink
-            href="/client/plans"
-            icon={<TargetIcon className="size-5" />}
-            title="Set targets"
-            description="One monthly amount per category."
-          />
-          <QuickLink
-            href="/client/actuals"
-            icon={<ReceiptTextIcon className="size-5" />}
-            title="Log spend"
-            description="Add an entry, or import a CSV."
-          />
-          <QuickLink
-            href="/client/report"
-            icon={<ScrollTextIcon className="size-5" />}
-            title="Run the report"
-            description="Any range, with variance and export."
-          />
-          <QuickLink
-            href="/client/categories"
-            icon={<TagsIcon className="size-5" />}
-            title="Categories"
-            description="Add, rename, or archive."
-          />
-        </div>
+        <Panel title="Jump to">
+          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-4">
+            {jumpTo.map((link) => (
+              <QuickLink key={link.href} {...link} />
+            ))}
+          </div>
+        </Panel>
       </Rise>
     </Stagger>
   );

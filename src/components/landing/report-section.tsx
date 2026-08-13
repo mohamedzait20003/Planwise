@@ -1,16 +1,26 @@
-import Link from "next/link";
-import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { SectionHeading } from "./section-heading";
 import { Reveal } from "./motion-primitives";
 import { ReportPreview } from "./report-preview";
 
 const reportPoints = [
-  "Grouped by category × month across any range you pick",
-  "Variance = actual − plan, so negative always means under plan",
-  "Plan of $0 shows N/A for variance % — never NaN, never Infinity",
-  "Missing actuals count as $0, but stay grey — a data gap isn't a saving",
+  {
+    title: "One row per category × month",
+    body: "Across whatever range you pick. Nothing is rolled up until you ask for it.",
+  },
+  {
+    title: "Variance = actual − plan",
+    body: "So the sign never flips meaning between screens: negative is under plan, positive is over.",
+  },
+  {
+    title: "A $0 plan shows N/A, not NaN",
+    body: "There is no denominator, so there is no percentage. The absolute variance is still shown, because that number is real.",
+  },
+  {
+    title: "A missing actual counts as $0 — in grey",
+    body: "Totals stay additive and a forgotten entry stays loud, but it is never painted green. A data gap is not a saving.",
+  },
 ];
 
 export function ReportSection() {
@@ -35,29 +45,23 @@ export function ReportSection() {
           <ReportPreview />
         </Reveal>
 
-        <Reveal delay={0.12} className="space-y-5">
+        <Reveal delay={0.12} className="space-y-6">
           <h3 className="text-xl font-semibold">Numbers you can defend</h3>
-          <ul className="space-y-3.5">
-            {reportPoints.map((point) => (
-              <li key={point} className="flex gap-3">
+          <ul className="space-y-5">
+            {reportPoints.map(({ title, body }) => (
+              <li key={title} className="flex gap-3">
                 <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-favorable/15 text-favorable">
-                  <CheckIcon className="size-3" />
+                  <CheckIcon aria-hidden className="size-3" />
                 </span>
-                <span className="text-sm leading-relaxed text-muted-foreground">
-                  {point}
-                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{title}</p>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {body}
+                  </p>
+                </div>
               </li>
             ))}
           </ul>
-          <Button
-            variant="outline"
-            className="rounded-full"
-            nativeButton={false}
-            render={<Link href="/report" />}
-          >
-            Open the report
-            <ArrowRightIcon />
-          </Button>
         </Reveal>
       </div>
     </section>
