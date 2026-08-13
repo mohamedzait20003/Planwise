@@ -4,54 +4,60 @@ import type { ApiEnvelope, ReportQuery, ReportResponse } from "@/lib/api/types";
 /**
  * The plan-vs-actual report.
  *
- * The report is generated off a queue and stored, so a request does not always
- * come back with numbers. `GET /client/report` answers one of three ways:
- *
- *   the report — a stored run exists and matches the current data;
- *   `{ status: "pending" | "processing" }` with 202 — work is under way;
- *   `{ status: "failed", error }` — the last attempt failed and the data has
- *   not changed since, so retrying would fail the same way.
- *
- * The endpoint is idempotent, which is what makes polling it safe: a job
- * already in flight is left alone rather than queued a second time.
+ * Reading and generating are separate calls, deliberately. `getReport` never
+ * queues work — opening the page shows the last answer for the range, or
+ * nothing at all if there has never been one. `generateReport` is what the
+ * Generate button does.
  */
-
-export type ReportProgress = {
-  status: "pending" | "processing" | "failed";
-  runId: string;
-  error?: string | null;
-};
 
 export type ReportOutcome =
-  | { ready: true; report: ReportResponse }
-  | { ready: false; progress: ReportProgress };
+  /** Nothing has ever been generated for this range. */
+  | { status: "none" }
+  /** A stored run. `stale` means the numbers underneath have moved since. */
+  | {
+      status: "ready";
+      stale: boolean;
+      computedAt: string | null;
+      report: ReportResponse;
+    }
+  | { status: "pending" | "processing"; runId: string }
+  | { status: "failed"; runId: string; error: string | null };
 
 /**
- * Discriminates on the payload rather than the status code.
- *
- * A failed run answers 200 — the request was fine, the answer is "this failed"
- * — so the code alone cannot tell the three cases apart. `ReportResponse` has
- * no `status` field, which makes its presence the reliable signal.
+ * Every response carries an explicit `status`, so nothing has to be inferred
+ * from the HTTP code — a failed run answers 200, because the request was fine
+ * and the answer is "this run failed".
  */
-function outcomeOf(
-  envelope: ApiEnvelope<ReportResponse | ReportProgress>
-): ReportOutcome {
-  const data = envelope.data;
-
-  if (data && "status" in data) {
-    return { ready: false, progress: data };
-  }
-
-  if (!data) {
+function outcomeOf(envelope: ApiEnvelope<ReportOutcome>): ReportOutcome {
+  if (!envelope.data) {
     throw new Error("The report response carried no data");
   }
 
-  return { ready: true, report: data };
+  return envelope.data;
 }
 
+/** Reads the stored run for a range. Never triggers generation. */
 export async function getReport(params: ReportQuery): Promise<ReportOutcome> {
-  const res = await baseApi.get<ApiEnvelope<ReportResponse | ReportProgress>>(
+  const res = await baseApi.get<ApiEnvelope<ReportOutcome>>("/client/report", {
+    params,
+  });
+
+  return outcomeOf(res.data);
+}
+
+/**
+ * Queues a fresh run.
+ *
+ * Answers `ready` directly when the server is configured to compute inline,
+ * and `pending` otherwise — the caller polls `getReport` either way, so it does
+ * not have to care which.
+ */
+export async function generateReport(
+  params: ReportQuery
+): Promise<ReportOutcome> {
+  const res = await baseApi.post<ApiEnvelope<ReportOutcome>>(
     "/client/report",
+    null,
     { params }
   );
 
@@ -62,8 +68,8 @@ export async function getReport(params: ReportQuery): Promise<ReportOutcome> {
  * The same report as CSV.
  *
  * Computed on demand rather than read from a stored run — the caller is already
- * waiting on a download, and there is nothing a browser can do with a 202.
- * Returned as a Blob because these bytes go straight to a file.
+ * waiting on a download, and there is nothing a browser can do with a 202. It
+ * is therefore always current, even when the stored run is stale.
  */
 export async function exportReportCsv(params: ReportQuery): Promise<Blob> {
   const res = await baseApi.get("/client/report/export", {

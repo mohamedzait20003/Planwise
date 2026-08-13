@@ -51,3 +51,8 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /coverage
+
+# claude code — local agent config, not project config
+# .mcp.json can carry server credentials; .claude/ holds machine-local settings
+.claude/
+.mcp.json

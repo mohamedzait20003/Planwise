@@ -26,13 +26,16 @@ export const GET = Endpoint<undefined, Deps>(
 );
 
 /**
- * Upsert, not create.
+ * Upsert, not create — and PUT rather than POST.
  *
  * One plan per category per month, so setting a target and changing it are the
- * same request. A separate POST/PATCH pair would only be a way to get a 409 on
- * the second save.
+ * same request; a POST/PATCH pair would only be a way to get a 409 on the
+ * second save. PUT because that request is idempotent and the resource is
+ * identified by the payload's natural key, `(category, month)`: sending it
+ * twice leaves the same single row, which is exactly what PUT promises and
+ * POST does not.
  */
-export const POST = Endpoint<UpsertPlanDto, Deps>(
+export const PUT = Endpoint<UpsertPlanDto, Deps>(
   Auth(),
   Body(upsertPlanDto),
   Require({ plans: PlanServiceProvider }),

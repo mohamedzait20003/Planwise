@@ -1,43 +1,93 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { exportReportCsv, getReport } from "@/lib/handlers/report";
+import { exportReportCsv, generateReport, getReport } from "@/lib/handlers/report";
 import type { ReportOutcome } from "@/lib/handlers/report";
 import { reportKeys } from "@/lib/api/keys";
+import type { ApiError } from "@/lib/api";
 import type { ReportQuery } from "@/lib/api/types";
 
-/** How often to ask again while a run is still being computed. */
+/** How often to ask again while a run is actually being computed. */
 const POLL_MS = 2_000;
 
 /**
- * The report, waiting for it if it is still being generated.
+ * The stored report for a range.
  *
- * Generation is queued, so the first ask usually answers "pending" and the
- * numbers arrive on a later poll. `refetchInterval` drives that, and stops the
- * moment the run is ready or has failed — a failed run against unchanged data
- * would fail identically forever, so polling it is just noise.
+ * Read-only: opening a page never queues work. Generation is `useGenerateReport`,
+ * which is what the Generate button calls.
  *
- * Polling hits the same endpoint as the first request, which is safe because it
- * is idempotent: it leaves a job already in flight alone rather than queueing
- * another.
+ * The outcome is unpacked here rather than in each screen, and not only to save
+ * the repetition. TanStack's result is itself a union of states, so reading
+ * `.data` off it yields `ReportOutcome | undefined` in a form the compiler will
+ * no longer narrow on `status` — a caller writing
+ * `outcome.status === "ready" ? outcome : undefined` gets back the whole union
+ * and has to cast. Re-annotating the value here restores the discriminant, so
+ * the narrowing happens once, in the one place that can do it honestly.
  *
- * `staleTime` is 0 deliberately, unlike the other lists. Any write bumps the
- * server's data version and the stored run becomes stale, so a cached report is
- * the one thing here that must never be served without asking.
+ * Polling only runs while a job is genuinely in flight, and stops the moment it
+ * settles either way. A failed run is not polled: it would fail identically
+ * until something changes.
  */
 export function useReport(params: ReportQuery) {
-  return useQuery({
+  const query = useQuery<ReportOutcome, ApiError>({
     queryKey: reportKeys.query(params),
     queryFn: () => getReport(params),
     enabled: Boolean(params.from && params.to),
-    staleTime: 0,
-    gcTime: 5 * 60_000,
-    refetchInterval: (query) => {
-      const outcome = query.state.data as ReportOutcome | undefined;
-      if (!outcome || outcome.ready) return false;
 
-      return outcome.progress.status === "failed" ? false : POLL_MS;
+    // A stored report is a snapshot, not live data, and it carries its own
+    // staleness flag. Refetching on every window focus would cost a request to
+    // learn what the payload already said.
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+
+    refetchInterval: (self) => {
+      const status = (self.state.data as ReportOutcome | undefined)?.status;
+      return status === "pending" || status === "processing" ? POLL_MS : false;
+    },
+  });
+
+  const outcome: ReportOutcome | undefined = query.data;
+  const ready = outcome?.status === "ready" ? outcome : undefined;
+
+  return {
+    isPending: query.isPending,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+
+    /** Nothing has ever been generated for this range. */
+    none: outcome?.status === "none",
+    /** A run is queued or being computed. */
+    generating:
+      outcome?.status === "pending" || outcome?.status === "processing",
+    /** The reason the last attempt failed, or null. */
+    failure:
+      outcome?.status === "failed"
+        ? (outcome.error ?? "The report failed to generate")
+        : null,
+
+    report: ready?.report,
+    /** True when the numbers underneath have moved since this was computed. */
+    stale: ready?.stale ?? false,
+    computedAt: ready?.computedAt ?? null,
+  };
+}
+
+/**
+ * Generates a report for a range.
+ *
+ * Writes the result straight into the cache, so a run computed inline appears
+ * without a second request; a queued one lands as `pending` and `useReport`
+ * takes over polling from there.
+ */
+export function useGenerateReport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: generateReport,
+    onSuccess: (outcome, params) => {
+      queryClient.setQueryData(reportKeys.query(params), outcome);
     },
   });
 }

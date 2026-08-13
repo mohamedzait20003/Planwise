@@ -13,18 +13,6 @@ function csvCell(value: string | number | null): string {
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-/**
- * The report as a CSV download.
- *
- * Computed directly rather than read from a stored run: an export is a
- * one-shot, the caller is already waiting for a file, and answering 202 to a
- * download is not a thing a browser can do anything with.
- *
- * Empty cells, not zeros, where nothing was logged — a spreadsheet's SUM skips
- * a blank and averages would otherwise count a month nobody filed as a real 0.
- * The variance columns still carry the computed figure, because that is the
- * number the report asserts.
- */
 export const GET = Endpoint<undefined, Deps>(
   Auth(),
   Require({ reports: ReportServiceProvider }),
@@ -51,8 +39,6 @@ export const GET = Endpoint<undefined, Deps>(
           csvCell(row.plan.toFixed(2)),
           csvCell(row.hasActual ? row.actual.toFixed(2) : null),
           csvCell(row.variance.toFixed(2)),
-          // Blank rather than "N/A": a spreadsheet can average a blank column,
-          // and "N/A" turns the whole column into text.
           csvCell(row.variancePct === null ? null : row.variancePct.toFixed(2)),
           csvCell(row.locked ? "yes" : "no"),
         ].join(",")
@@ -61,9 +47,6 @@ export const GET = Endpoint<undefined, Deps>(
 
     const name = `planwise-report-${parsed.data.from}-to-${parsed.data.to}.csv`;
 
-    // ﻿ is a UTF-8 BOM. Without it Excel reads the file as the local
-    // codepage and mangles any non-ASCII category name; \r\n is the line ending
-    // it expects alongside.
     return new Response(`﻿${lines.join("\r\n")}`, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
