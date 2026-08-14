@@ -99,6 +99,12 @@
 }
 
 :root {
+    /* Tells the browser which way to paint everything it draws itself: select
+       popups, month pickers, scrollbars, autofill. Without it those stay in the
+       OS light scheme while the page goes dark, which is how a dropdown ends up
+       white with white text on it. */
+    color-scheme: light;
+
     --radius: 0.65rem;
 
     /* Surfaces — neutrals carry a slight cool tint so they sit with the indigo */
@@ -188,6 +194,8 @@
 }
 
 .dark {
+    color-scheme: dark;
+
     /* Deep navy-indigo rather than neutral black — keeps the brand present */
     --background: oklch(0.168 0.019 268);
     --foreground: oklch(0.965 0.006 265);
@@ -274,6 +282,16 @@
             scroll-behavior: auto;
         }
     }
+    /* Native <option> is drawn by the platform, and Windows in particular
+       ignores the select's own colours for the popup — inheriting the page's
+       near-white foreground onto a white list. `color-scheme` fixes it on most
+       engines; naming the pair explicitly covers the rest. macOS renders the
+       popup natively and ignores both, which is correct there. */
+    select option {
+        background-color: var(--popover);
+        color: var(--popover-foreground);
+    }
+
     /* Financial figures must align vertically in tables */
     [data-numeric],
     table tbody td {
