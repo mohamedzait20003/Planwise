@@ -87,6 +87,25 @@ export class PlanModel {
 }
 
 /**
+ * A plan read together with its category's name.
+ *
+ * The report needs the name on every planned row and will not join for it per
+ * row, so `listInRange` selects it alongside. A subclass rather than an
+ * optional field on `PlanModel`: the name is either guaranteed by the query or
+ * absent by the query, never sometimes-there, and a `string | undefined` would
+ * push a fallback into the one consumer that always has it.
+ */
+@Model<PlanWithCategoryModel>({ name: "Plan", months: ["periodMonth"] })
+export class PlanWithCategoryModel extends PlanModel {
+  readonly categoryName: string;
+
+  constructor(row: PrismaPlan & { category: { name: string } }) {
+    super(row);
+    this.categoryName = row.category.name;
+  }
+}
+
+/**
  * A single logged spend. Unlike a plan there may be many per category-month —
  * actuals are a ledger, summed at report time, which is what makes the
  * drill-down view possible.

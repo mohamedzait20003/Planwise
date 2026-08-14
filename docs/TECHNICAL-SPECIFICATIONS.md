@@ -132,9 +132,15 @@ Money crosses as a `number` — Prisma `Decimal` is not JSON-serializable and
 would arrive as an object the client cannot add up. Months cross as `"YYYY-MM"`
 strings, never `Date`.
 
-Both conversions happen in exactly one place, `src/domain/helpers/wire.ts`, and
-the wire types are imported from `src/lib/api/types.ts` rather than redeclared,
-so the compiler catches drift between the two sides.
+Both conversions happen in the **model layer**, `src/domain/models/`, which is
+what every repository returns. `src/domain/helpers/wire.ts` then maps a model to
+the wire type — picking the fields the client is promised and rendering
+timestamps as ISO strings, with no arithmetic left to do.
+
+The wire types are imported from `src/lib/api/types.ts` rather than redeclared,
+so the compiler catches drift between the two sides. Keeping models and wire
+types separate is what stops a new column widening the API by accident: it lands
+on the model, and the wire type has to be changed on purpose.
 
 ## Conventions
 

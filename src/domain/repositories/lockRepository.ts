@@ -4,6 +4,7 @@ import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
 import { monthToDate } from "../helpers/period";
+import { PeriodLockModel } from "../models/budgetModel";
 
 /**
  * Period locks.
@@ -14,20 +15,28 @@ import { monthToDate } from "../helpers/period";
  */
 @Repository({ name: "LockRepository" })
 export class LockRepository {
-  async list(userId: string) {
-    return db().periodLock.findMany({
+  async list(userId: string): Promise<PeriodLockModel[]> {
+    const rows = await db().periodLock.findMany({
       where: { userId },
       orderBy: [{ periodMonth: "desc" }],
     });
+
+    return rows.map((row) => new PeriodLockModel(row));
   }
 
-  async listInRange(userId: string, from: string, to: string) {
-    return db().periodLock.findMany({
+  async listInRange(
+    userId: string,
+    from: string,
+    to: string
+  ): Promise<PeriodLockModel[]> {
+    const rows = await db().periodLock.findMany({
       where: {
         userId,
         periodMonth: { gte: monthToDate(from), lte: monthToDate(to) },
       },
     });
+
+    return rows.map((row) => new PeriodLockModel(row));
   }
 
   /**
@@ -47,16 +56,22 @@ export class LockRepository {
     return row !== null;
   }
 
-  async lock(userId: string, month: string, note?: string | null) {
+  async lock(
+    userId: string,
+    month: string,
+    note?: string | null
+  ): Promise<PeriodLockModel> {
     const periodMonth = monthToDate(month);
 
     // Upsert rather than create: locking an already-locked month is a no-op the
     // user meant, not a 409 they have to interpret.
-    return db().periodLock.upsert({
+    const row = await db().periodLock.upsert({
       where: { userId_periodMonth: { userId, periodMonth } },
       create: { userId, periodMonth, note: note ?? null },
       update: { note: note ?? null },
     });
+
+    return new PeriodLockModel(row);
   }
 
   async unlock(userId: string, month: string): Promise<boolean> {

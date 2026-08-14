@@ -23,6 +23,42 @@ route handler (app/api)     Endpoint(Auth, Body, Require, handler)
 Each layer knows only the one below it. A component never imports a repository;
 a service never learns it is behind HTTP.
 
+## Models
+
+A repository returns a **model**, never a Prisma row. The two conversions the
+database forces happen there and nowhere else:
+
+| From | To | Why |
+|---|---|---|
+| `Prisma.Decimal` | `number` | Decimal is not JSON-serializable; handed to a Client Component it arrives as `{}` |
+| `@db.Date` | `"YYYY-MM"` | Read in **UTC**. Local getters render `2026-01-01` as `"2025-12"` west of Greenwich |
+
+So a service reads `plan.amount` and `plan.month`, not `toNumber(plan.amount)`
+and `dateToMonth(plan.periodMonth)`. Doing it at the boundary means there is one
+place to get the UTC reading wrong instead of one per call site.
+
+**Three shapes deliberately stay raw**, because they are not entities:
+
+- `ActualRepository.sumInRange` is a `groupBy` — the sum of many rows has no id
+  and no note, and wrapping it in an `ActualModel` would invent both.
+- `LockRepository.isLocked` answers a boolean. The question is whether a row
+  exists, not what is in it.
+- Counts from `createMany` / `deleteMany`.
+
+`PlanWithCategoryModel` exists because the report needs the category name on
+every planned row and will not join per row. A subclass rather than an optional
+field: the name is either guaranteed by the query or absent by it, never
+sometimes-there.
+
+Not every model exists to be serialized. `EmailVerificationModel` and
+`PasswordResetModel` never leave `TokenRepository` — they exist because expiry
+is a rule (`isExpired`) that was otherwise written inline at two consume sites.
+
+**Models are not wire types.** A model is the row as the server understands it;
+a wire type is the subset the client is promised. `domain/helpers/wire.ts` maps
+one to the other and does nothing else now — so adding a column widens the model
+without silently widening the API.
+
 ## The endpoint pipeline
 
 Route handlers are composed, not decorated. The original shape —

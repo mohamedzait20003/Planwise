@@ -15,7 +15,7 @@ export type UserProfile = {
 
 @Model<UserModel>({
     name: "User",
-    exclude: ["passwordHash"],
+    exclude: ["passwordHash", "dataVersion"],
 })
 export class UserModel {
     readonly Id: string;
@@ -32,6 +32,16 @@ export class UserModel {
     readonly createdAt: Date;
     readonly updatedAt: Date;
 
+    /**
+     * Bumped by every write that can move a report number. A stored run records
+     * the value it computed against, so staleness is one integer compare.
+     *
+     * Excluded from the DTO: it is bookkeeping the client never reads, and a
+     * counter that increments on every write is a write-frequency signal there
+     * is no reason to publish.
+     */
+    readonly dataVersion: number;
+
     readonly passwordHash: string | null;
 
     constructor(row: PrismaUser) {
@@ -45,6 +55,7 @@ export class UserModel {
         this.emailVerifiedAt = row.emailVerifiedAt;
         this.createdAt = row.createdAt;
         this.updatedAt = row.updatedAt;
+        this.dataVersion = row.dataVersion;
         this.passwordHash = row.passwordHash;
     }
 

@@ -4,6 +4,7 @@ import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
 import { monthToDate } from "../helpers/period";
+import { PlanModel, PlanWithCategoryModel } from "../models/budgetModel";
 
 /**
  * Plans — one target per category per month.
@@ -14,24 +15,31 @@ import { monthToDate } from "../helpers/period";
  */
 @Repository({ name: "PlanRepository" })
 export class PlanRepository {
-  async list(userId: string, month?: string) {
-    return db().plan.findMany({
+  async list(userId: string, month?: string): Promise<PlanModel[]> {
+    const rows = await db().plan.findMany({
       where: {
         userId,
         ...(month ? { periodMonth: monthToDate(month) } : {}),
       },
       orderBy: [{ periodMonth: "asc" }],
     });
+
+    return rows.map((row) => new PlanModel(row));
   }
 
-  /** Everything in an inclusive month range — what the report reads. */
+  /**
+   * Everything in an inclusive month range — what the report reads.
+   *
+   * Selects the category name alongside, because the report puts it on every
+   * planned row and joining per row would be one query per cell.
+   */
   async listInRange(
     userId: string,
     from: string,
     to: string,
     categoryId?: string
-  ) {
-    return db().plan.findMany({
+  ): Promise<PlanWithCategoryModel[]> {
+    const rows = await db().plan.findMany({
       where: {
         userId,
         ...(categoryId ? { categoryId } : {}),
@@ -40,10 +48,13 @@ export class PlanRepository {
       include: { category: { select: { name: true } } },
       orderBy: [{ periodMonth: "asc" }],
     });
+
+    return rows.map((row) => new PlanWithCategoryModel(row));
   }
 
-  async findById(userId: string, id: string) {
-    return db().plan.findFirst({ where: { id, userId } });
+  async findById(userId: string, id: string): Promise<PlanModel | null> {
+    const row = await db().plan.findFirst({ where: { id, userId } });
+    return row && new PlanModel(row);
   }
 
   async upsert(input: {
@@ -51,10 +62,10 @@ export class PlanRepository {
     categoryId: string;
     month: string;
     amount: number;
-  }) {
+  }): Promise<PlanModel> {
     const periodMonth = monthToDate(input.month);
 
-    return db().plan.upsert({
+    const row = await db().plan.upsert({
       where: {
         userId_categoryId_periodMonth: {
           userId: input.userId,
@@ -70,6 +81,8 @@ export class PlanRepository {
       },
       update: { amount: input.amount },
     });
+
+    return new PlanModel(row);
   }
 
   async delete(userId: string, id: string): Promise<boolean> {

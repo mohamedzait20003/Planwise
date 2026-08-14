@@ -4,18 +4,17 @@ import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
 import { monthToDate } from "../helpers/period";
+import { ActualModel } from "../models/budgetModel";
 
-/**
- * Actuals.
- *
- * Many rows may share a category and month — three invoices against Marketing
- * in January are three entries, and only the sum matters to the report. That is
- * why there is no unique constraint here and no upsert.
- */
+
 @Repository({ name: "ActualRepository" })
 export class ActualRepository {
-  async list(userId: string, month?: string, categoryId?: string) {
-    return db().actual.findMany({
+  async list(
+    userId: string,
+    month?: string,
+    categoryId?: string
+  ): Promise<ActualModel[]> {
+    const rows = await db().actual.findMany({
       where: {
         userId,
         ...(month ? { periodMonth: monthToDate(month) } : {}),
@@ -23,14 +22,17 @@ export class ActualRepository {
       },
       orderBy: [{ periodMonth: "asc" }, { createdAt: "desc" }],
     });
+
+    return rows.map((row) => new ActualModel(row));
   }
 
   /**
-   * Summed per category and month across a range.
+   * Totals per category-month, aggregated in Postgres.
    *
-   * `groupBy` rather than fetching the rows and reducing in JS: a year of daily
-   * entries is thousands of rows the report never needs individually, and the
-   * database is where that collapse belongs.
+   * Returns the raw `groupBy` shape rather than a model on purpose: this is not
+   * an entity. There is no actual with this identity — it is the sum of many,
+   * and wrapping it in an `ActualModel` would invent an id and a note for a row
+   * that has neither.
    */
   async sumInRange(
     userId: string,
@@ -49,8 +51,9 @@ export class ActualRepository {
     });
   }
 
-  async findById(userId: string, id: string) {
-    return db().actual.findFirst({ where: { id, userId } });
+  async findById(userId: string, id: string): Promise<ActualModel | null> {
+    const row = await db().actual.findFirst({ where: { id, userId } });
+    return row && new ActualModel(row);
   }
 
   async create(input: {
@@ -59,8 +62,8 @@ export class ActualRepository {
     month: string;
     amount: number;
     note?: string | null;
-  }) {
-    return db().actual.create({
+  }): Promise<ActualModel> {
+    const row = await db().actual.create({
       data: {
         userId: input.userId,
         categoryId: input.categoryId,
@@ -69,9 +72,10 @@ export class ActualRepository {
         note: input.note ?? null,
       },
     });
+
+    return new ActualModel(row);
   }
 
-  /** Bulk insert for the CSV import. Rejected rows are filtered out upstream. */
   async createMany(
     rows: Array<{
       userId: string;
@@ -105,7 +109,7 @@ export class ActualRepository {
       amount?: number;
       note?: string | null;
     }
-  ) {
+  ): Promise<ActualModel | null> {
     const { count } = await db().actual.updateMany({
       where: { id, userId },
       data: {

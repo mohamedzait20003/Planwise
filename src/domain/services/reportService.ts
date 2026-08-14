@@ -157,11 +157,16 @@ export class ReportService {
     ]);
 
     const names = new Map(categories.map((category) => [category.id, category.name]));
-    const lockedMonths = new Set(locks.map((lock) => dateToMonth(lock.periodMonth)));
+    // `month` off the model rather than dateToMonth here — the conversion is
+    // the model's job, and doing it again would be a second place to get the
+    // UTC reading wrong.
+    const lockedMonths = new Set(locks.map((lock) => lock.month));
 
     // Nested rather than a composite string key: a separator is one more thing
     // that has to be a character neither a cuid nor a month can contain.
     const actualByCategory = new Map<string, Map<string, number>>();
+    // `sumInRange` is an aggregate, not an entity, so it stays a raw groupBy
+    // and this is the one place still converting by hand.
     for (const group of actualSums) {
       const month = dateToMonth(group.periodMonth);
       const forCategory = actualByCategory.get(group.categoryId) ?? new Map();
@@ -175,10 +180,10 @@ export class ReportService {
     // A planned cell always produces a row, logged or not — that is what makes
     // a forgotten entry loud instead of invisible.
     for (const plan of plans) {
-      const month = dateToMonth(plan.periodMonth);
+      const month = plan.month;
       const forCategory = actualByCategory.get(plan.categoryId);
 
-      const planAmount = toNumber(plan.amount);
+      const planAmount = plan.amount;
       const hasActual = forCategory?.has(month) ?? false;
       const actual = forCategory?.get(month) ?? 0;
       const variance = round(actual - planAmount);
@@ -188,7 +193,7 @@ export class ReportService {
 
       rows.push({
         categoryId: plan.categoryId,
-        categoryName: plan.category.name,
+        categoryName: plan.categoryName,
         month,
         plan: planAmount,
         actual,
@@ -260,10 +265,10 @@ export class ReportService {
     await this.reports.markProcessing(runId);
 
     const result = await this.compute(userId, {
-      from: dateToMonth(run.fromMonth),
-      to: dateToMonth(run.toMonth),
+      from: run.from,
+      to: run.to,
       // "" is "every category"; the compute path wants undefined for that.
-      categoryId: run.categoryId || undefined,
+      categoryId: run.filterCategoryId ?? undefined,
     });
 
     await this.reports.saveResult({

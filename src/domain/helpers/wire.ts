@@ -1,6 +1,12 @@
 import "server-only";
 
-import { dateToMonth, toNumber } from "./period";
+import type {
+  ActualModel,
+  CategoryModel,
+  PeriodLockModel,
+  PlanModel,
+} from "../models/budgetModel";
+import type { ReportRunModel } from "../models/reportModel";
 import type {
   Actual,
   Category,
@@ -19,130 +25,90 @@ import type { ReportStatus } from "../../../generated/prisma/client";
  * catches a drift between the two sides instead of the UI rendering
  * `undefined`.
  *
- * Two conversions happen here and nowhere else. `Decimal` becomes a number,
- * because Decimal is not JSON-serializable and would arrive as an object the
- * client cannot add up. `@db.Date` becomes "YYYY-MM", because a Date crossing
- * the boundary as an ISO string invites the client to parse it in local time
- * and land in the previous month.
+ * These take models, not Prisma rows. `Decimal` to `number` and `@db.Date` to
+ * `"YYYY-MM"` both happen once, in the model layer, so what is left here is
+ * only the reshaping: picking the fields the client is allowed to see and
+ * rendering timestamps as ISO strings.
+ *
+ * That split is the point. A model is the row as the server understands it; a
+ * wire type is the subset the client is promised. Keeping both means adding a
+ * column does not silently widen the API.
  */
 
-type Row = { toString(): string };
-
-export function toCategory(row: {
-  id: string;
-  name: string;
-  archivedAt: Date | null;
-  createdAt: Date;
-}): Category {
+export function toCategory(model: CategoryModel): Category {
   return {
-    id: row.id,
-    name: row.name,
-    archivedAt: row.archivedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
+    id: model.id,
+    name: model.name,
+    archivedAt: model.archivedAt?.toISOString() ?? null,
+    createdAt: model.createdAt.toISOString(),
   };
 }
 
-export function toPlan(row: {
-  id: string;
-  categoryId: string;
-  periodMonth: Date;
-  amount: Row;
-}): Plan {
+export function toPlan(model: PlanModel): Plan {
   return {
-    id: row.id,
-    categoryId: row.categoryId,
-    month: dateToMonth(row.periodMonth),
-    amount: toNumber(row.amount),
+    id: model.id,
+    categoryId: model.categoryId,
+    month: model.month,
+    amount: model.amount,
   };
 }
 
-export function toActual(row: {
-  id: string;
-  categoryId: string;
-  periodMonth: Date;
-  amount: Row;
-  note: string | null;
-  createdAt: Date;
-}): Actual {
+export function toActual(model: ActualModel): Actual {
   return {
-    id: row.id,
-    categoryId: row.categoryId,
-    month: dateToMonth(row.periodMonth),
-    amount: toNumber(row.amount),
-    note: row.note,
-    createdAt: row.createdAt.toISOString(),
+    id: model.id,
+    categoryId: model.categoryId,
+    month: model.month,
+    amount: model.amount,
+    note: model.note,
+    createdAt: model.createdAt.toISOString(),
   };
 }
 
-export function toLock(row: {
-  id: string;
-  periodMonth: Date;
-  lockedAt: Date;
-  note: string | null;
-}): PeriodLock {
+export function toLock(model: PeriodLockModel): PeriodLock {
   return {
-    id: row.id,
-    month: dateToMonth(row.periodMonth),
-    lockedAt: row.lockedAt.toISOString(),
-    note: row.note,
+    id: model.id,
+    month: model.month,
+    lockedAt: model.lockedAt.toISOString(),
+    note: model.note,
   };
 }
 
-/** A stored run, with its rows, as the report response the client renders. */
-export function toReport(run: {
-  fromMonth: Date;
-  toMonth: Date;
-  totalPlan: Row;
-  totalActual: Row;
-  totalVariance: Row;
-  rows: Array<{
-    categoryId: string;
-    categoryName: string;
-    periodMonth: Date;
-    plan: Row;
-    actual: Row;
-    variance: Row;
-    variancePct: Row | null;
-    hasActual: boolean;
-    locked: boolean;
-  }>;
-  months: Array<{
-    periodMonth: Date;
-    plan: Row;
-    actual: Row;
-    variance: Row;
-  }>;
-}): ReportResponse {
-  const plan = toNumber(run.totalPlan);
-  const variance = toNumber(run.totalVariance);
-
+/**
+ * A stored run, with its rows, as the report response the client renders.
+ *
+ * `rows` and `months` are optional on the model because the history list reads
+ * runs without them. Defaulting to empty here rather than demanding they be
+ * present is also correct on its own terms: a finished run over a range with no
+ * plans and no actuals genuinely has no rows.
+ */
+export function toReport(run: ReportRunModel): ReportResponse {
   return {
-    from: dateToMonth(run.fromMonth),
-    to: dateToMonth(run.toMonth),
-    rows: run.rows.map((row) => ({
+    from: run.from,
+    to: run.to,
+    rows: (run.rows ?? []).map((row) => ({
       categoryId: row.categoryId,
       categoryName: row.categoryName,
-      month: dateToMonth(row.periodMonth),
-      plan: toNumber(row.plan),
-      actual: toNumber(row.actual),
-      variance: toNumber(row.variance),
+      month: row.month,
+      plan: row.plan,
+      actual: row.actual,
+      variance: row.variance,
       // Null survives the round trip: it means the plan was 0 and the ratio is
       // undefined, which the UI renders "N/A".
-      variancePct: row.variancePct === null ? null : toNumber(row.variancePct),
+      variancePct: row.variancePct,
       hasActual: row.hasActual,
       locked: row.locked,
     })),
-    byMonth: run.months.map((entry) => ({
-      month: dateToMonth(entry.periodMonth),
-      plan: toNumber(entry.plan),
-      actual: toNumber(entry.actual),
-      variance: toNumber(entry.variance),
+    byMonth: (run.months ?? []).map((entry) => ({
+      month: entry.month,
+      plan: entry.plan,
+      actual: entry.actual,
+      variance: entry.variance,
     })),
     totals: {
-      plan,
-      actual: toNumber(run.totalActual),
-      variance,
-      variancePct: plan === 0 ? null : (variance / plan) * 100,
+      plan: run.totalPlan,
+      actual: run.totalActual,
+      variance: run.totalVariance,
+      variancePct: run.totalVariancePct,
     },
   };
 }
@@ -155,38 +121,21 @@ export function toReport(run: {
  * has no other reason to know.
  */
 export function toReportRunSummary(
-  run: {
-    id: string;
-    fromMonth: Date;
-    toMonth: Date;
-    categoryId: string;
-    status: ReportStatus;
-    totalPlan: Row;
-    totalActual: Row;
-    totalVariance: Row;
-    dataVersion: number;
-    requestedAt: Date;
-    computedAt: Date | null;
-  },
+  run: ReportRunModel,
   currentDataVersion: number
 ): ReportRunSummary {
-  const plan = toNumber(run.totalPlan);
-  const variance = toNumber(run.totalVariance);
-
   return {
     id: run.id,
-    from: dateToMonth(run.fromMonth),
-    to: dateToMonth(run.toMonth),
-    // "" is the stored sentinel for "every category"; null is what the client
-    // means by it, and what its filter state already uses.
-    categoryId: run.categoryId === "" ? null : run.categoryId,
+    from: run.from,
+    to: run.to,
+    categoryId: run.filterCategoryId,
     status: run.status.toLowerCase() as Lowercase<ReportStatus>,
-    stale: run.dataVersion !== currentDataVersion,
+    stale: !run.isCurrent(currentDataVersion),
     totals: {
-      plan,
-      actual: toNumber(run.totalActual),
-      variance,
-      variancePct: plan === 0 ? null : (variance / plan) * 100,
+      plan: run.totalPlan,
+      actual: run.totalActual,
+      variance: run.totalVariance,
+      variancePct: run.totalVariancePct,
     },
     requestedAt: run.requestedAt.toISOString(),
     computedAt: run.computedAt?.toISOString() ?? null,

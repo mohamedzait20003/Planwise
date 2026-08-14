@@ -4,6 +4,7 @@ import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
 import { monthToDate } from "../helpers/period";
+import { ReportRunModel } from "../models/reportModel";
 import { ReportStatus } from "../../../generated/prisma/client";
 
 /**
@@ -16,21 +17,18 @@ import { ReportStatus } from "../../../generated/prisma/client";
  */
 @Repository({ name: "ReportRepository" })
 export class ReportRepository {
-  /** The run for this exact query, with its computed rows if it has any. */
   async findRun(
     userId: string,
     from: string,
     to: string,
     categoryId?: string
-  ) {
-    return db().reportRun.findUnique({
+  ): Promise<ReportRunModel | null> {
+    const row = await db().reportRun.findUnique({
       where: {
         userId_fromMonth_toMonth_categoryId: {
           userId,
           fromMonth: monthToDate(from),
           toMonth: monthToDate(to),
-          // "" is the stored form of "every category" — see the schema for why
-          // it is a sentinel rather than null.
           categoryId: categoryId ?? "",
         },
       },
@@ -39,6 +37,8 @@ export class ReportRepository {
         months: { orderBy: { periodMonth: "asc" } },
       },
     });
+
+    return row && new ReportRunModel(row);
   }
 
   /**
@@ -52,35 +52,29 @@ export class ReportRepository {
    * until a run finishes, so ordering on it would either hide a pending run or
    * sort it to an arbitrary end.
    */
-  async listRuns(userId: string, limit: number) {
-    return db().reportRun.findMany({
+  async listRuns(userId: string, limit: number): Promise<ReportRunModel[]> {
+    const rows = await db().reportRun.findMany({
       where: { userId },
       orderBy: { requestedAt: "desc" },
       take: limit,
-      select: {
-        id: true,
-        fromMonth: true,
-        toMonth: true,
-        categoryId: true,
-        status: true,
-        totalPlan: true,
-        totalActual: true,
-        totalVariance: true,
-        dataVersion: true,
-        requestedAt: true,
-        computedAt: true,
-      },
     });
+
+    return rows.map((row) => new ReportRunModel(row));
   }
 
-  async findRunById(userId: string, runId: string) {
-    return db().reportRun.findFirst({
+  async findRunById(
+    userId: string,
+    runId: string
+  ): Promise<ReportRunModel | null> {
+    const row = await db().reportRun.findFirst({
       where: { id: runId, userId },
       include: {
         rows: { orderBy: [{ periodMonth: "asc" }, { categoryName: "asc" }] },
         months: { orderBy: { periodMonth: "asc" } },
       },
     });
+
+    return row && new ReportRunModel(row);
   }
 
   /**
@@ -96,7 +90,7 @@ export class ReportRepository {
     to: string;
     categoryId?: string;
     dataVersion: number;
-  }) {
+  }): Promise<ReportRunModel> {
     const key = {
       userId: input.userId,
       fromMonth: monthToDate(input.from),
@@ -104,7 +98,7 @@ export class ReportRepository {
       categoryId: input.categoryId ?? "",
     };
 
-    return db().reportRun.upsert({
+    const row = await db().reportRun.upsert({
       where: { userId_fromMonth_toMonth_categoryId: key },
       create: { ...key, status: ReportStatus.PENDING, dataVersion: input.dataVersion },
       update: {
@@ -114,6 +108,8 @@ export class ReportRepository {
         requestedAt: new Date(),
       },
     });
+
+    return new ReportRunModel(row);
   }
 
   async markProcessing(runId: string): Promise<void> {

@@ -4,6 +4,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { db } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { Repository } from "../decorators/repository";
+import {
+  EmailVerificationModel,
+  PasswordResetModel,
+} from "../models/tokenModel";
 
 /** Returned to the caller so it can be mailed. Only the hash is persisted. */
 export type IssuedToken = {
@@ -53,10 +57,15 @@ export class TokenRepository {
       where: { tokenHash: hashToken(raw) },
     });
 
-    if (!row || row.expiresAt < new Date()) return null;
+    if (!row) return null;
 
-    await db().emailVerification.delete({ where: { Id: row.Id } });
-    return row.userId;
+    // Expiry is the model's rule, so both consume paths ask the same question
+    // instead of each writing its own comparison.
+    const token = new EmailVerificationModel(row);
+    if (token.isExpired()) return null;
+
+    await db().emailVerification.delete({ where: { Id: token.Id } });
+    return token.userId;
   }
 
   async issuePasswordReset(
@@ -79,10 +88,13 @@ export class TokenRepository {
       where: { tokenHash: hashToken(raw) },
     });
 
-    if (!row || row.expiresAt < new Date()) return null;
+    if (!row) return null;
 
-    await db().passwordReset.delete({ where: { Id: row.Id } });
-    return row.userId;
+    const token = new PasswordResetModel(row);
+    if (token.isExpired()) return null;
+
+    await db().passwordReset.delete({ where: { Id: token.Id } });
+    return token.userId;
   }
 }
 

@@ -38,11 +38,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   emailVerifiedAt DateTime?
-
-  /// Bumped by every write that can move a report number — a plan, an actual,
-  /// a lock, a category rename. A stored ReportRun records the version it was
-  /// computed against, so staleness is one integer compare rather than a scan
-  /// of everything in range.
+  
   dataVersion  Int      @default(0)
 
   plans         Plan[]

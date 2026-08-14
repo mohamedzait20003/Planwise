@@ -19,7 +19,7 @@ import {
 } from "../repositories/reportRepository";
 import { CategoryServiceProvider, CategoryService } from "./categoryService";
 import { LockServiceProvider, LockService } from "./lockService";
-import { dateToMonth, isMonth } from "../helpers/period";
+import { isMonth } from "../helpers/period";
 
 
 export type ImportRowError = {
@@ -78,7 +78,7 @@ export class ActualService {
     const existing = await this.actuals.findById(userId, id);
     if (!existing) throw new NotFoundError("Actual");
 
-    await this.locks.assertOpen(userId, dateToMonth(existing.periodMonth));
+    await this.locks.assertOpen(userId, existing.month);
     if (input.month !== undefined) {
       await this.locks.assertOpen(userId, input.month);
     }
@@ -98,7 +98,7 @@ export class ActualService {
     const existing = await this.actuals.findById(userId, id);
     if (!existing) throw new NotFoundError("Actual");
 
-    await this.locks.assertOpen(userId, dateToMonth(existing.periodMonth));
+    await this.locks.assertOpen(userId, existing.month);
 
     await this.actuals.delete(userId, id);
     await this.reports.bumpDataVersion(userId);

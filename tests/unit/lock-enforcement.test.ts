@@ -32,9 +32,43 @@ const { PlanService } = await import("@/domain/services/planService");
 const { ActualService } = await import("@/domain/services/actualService");
 const { PeriodLockedError } = await import("@/domain/decorators/global");
 const { monthToDate } = await import("@/domain/helpers/period");
+const { ActualModel, PlanModel } = await import("@/domain/models/budgetModel");
 
 const USER = "user_1";
 const CATEGORY = "cat_marketing";
+
+/** Stands in for a Prisma Decimal — the models only ever call `toNumber`. */
+const decimal = (value: number) => ({ toNumber: () => value });
+const TIMESTAMPS = { createdAt: new Date(0), updatedAt: new Date(0) };
+
+/**
+ * Stored rows come back from the repositories as models, so the stubs return
+ * models too. That matters here specifically: the services read the month off
+ * `.month`, which is the model's own UTC-safe accessor — a row-shaped literal
+ * would hand them `undefined` and every lock check would pass by accident.
+ */
+function storedPlan(month: string) {
+  return new PlanModel({
+    id: "plan_1",
+    userId: USER,
+    categoryId: CATEGORY,
+    periodMonth: monthToDate(month),
+    amount: decimal(5_000),
+    ...TIMESTAMPS,
+  } as never);
+}
+
+function storedActual(month: string) {
+  return new ActualModel({
+    id: "actual_1",
+    userId: USER,
+    categoryId: CATEGORY,
+    periodMonth: monthToDate(month),
+    amount: decimal(100),
+    note: null,
+    ...TIMESTAMPS,
+  } as never);
+}
 
 /**
  * A lock service that considers exactly `locked` closed and nothing else.
@@ -135,7 +169,7 @@ describe("PlanService", () => {
     // would pass here, because there is no month in the request to check.
     const repo = {
       ...spyRepo(),
-      findById: async () => ({ id: "plan_1", periodMonth: monthToDate("2026-01") }),
+      findById: async () => storedPlan("2026-01"),
     };
     const { service } = planService(["2026-01"], repo);
 
@@ -173,10 +207,7 @@ describe("ActualService", () => {
 
   it("refuses an edit to an entry stored in a closed month", async () => {
     const { service, repo } = actualService(["2026-01"], {
-      findById: async () => ({
-        id: "actual_1",
-        periodMonth: monthToDate("2026-01"),
-      }),
+      findById: async () => storedActual("2026-01"),
     });
 
     await expect(
@@ -188,10 +219,7 @@ describe("ActualService", () => {
 
   it("refuses moving an entry INTO a closed month", async () => {
     const { service, repo } = actualService(["2026-01"], {
-      findById: async () => ({
-        id: "actual_1",
-        periodMonth: monthToDate("2026-02"),
-      }),
+      findById: async () => storedActual("2026-02"),
     });
 
     await expect(
@@ -205,10 +233,7 @@ describe("ActualService", () => {
     // The naive check — validate only the month in the payload — passes this
     // request, and a closed month can then be emptied one row at a time.
     const { service, repo } = actualService(["2026-01"], {
-      findById: async () => ({
-        id: "actual_1",
-        periodMonth: monthToDate("2026-01"),
-      }),
+      findById: async () => storedActual("2026-01"),
     });
 
     await expect(
@@ -220,10 +245,7 @@ describe("ActualService", () => {
 
   it("allows a move between two open months", async () => {
     const { service, repo } = actualService(["2026-01"], {
-      findById: async () => ({
-        id: "actual_1",
-        periodMonth: monthToDate("2026-02"),
-      }),
+      findById: async () => storedActual("2026-02"),
     });
 
     await service.update(USER, "actual_1", { month: "2026-03" });
@@ -233,10 +255,7 @@ describe("ActualService", () => {
 
   it("reads the month off the stored row when deleting", async () => {
     const { service, repo } = actualService(["2026-01"], {
-      findById: async () => ({
-        id: "actual_1",
-        periodMonth: monthToDate("2026-01"),
-      }),
+      findById: async () => storedActual("2026-01"),
     });
 
     await expect(service.delete(USER, "actual_1")).rejects.toThrow(

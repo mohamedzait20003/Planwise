@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { ReportService } from "@/domain/services/reportService";
 import type { ReportRow } from "@/domain/services/reportService";
 import { monthToDate } from "@/domain/helpers/period";
+import {
+  CategoryModel,
+  PeriodLockModel,
+  PlanWithCategoryModel,
+} from "@/domain/models/budgetModel";
 
 /**
  * The aggregation, with the database stubbed out.
@@ -15,24 +20,54 @@ import { monthToDate } from "@/domain/helpers/period";
  * `compute` is deliberately the unit under test rather than `fulfil` — the
  * latter is wrapped in `@Transactional()` and would want a real client, and it
  * adds nothing but persistence to what is asserted here.
+ *
+ * The stubs hand back real models rather than row-shaped literals, which is
+ * what the repositories now return. That also means the Decimal-to-number and
+ * date-to-"YYYY-MM" conversions are exercised here instead of being assumed.
  */
 
 const USER = "user_1";
 
-type PlanRow = {
-  categoryId: string;
-  periodMonth: Date;
-  amount: { toString(): string };
-  category: { name: string };
-};
+/** Stands in for a Prisma Decimal — the models only ever call `toNumber`. */
+const decimal = (value: number) => ({ toNumber: () => value });
 
-function plan(categoryId: string, name: string, month: string, amount: number): PlanRow {
-  return {
+const TIMESTAMPS = { createdAt: new Date(0), updatedAt: new Date(0) };
+
+function plan(
+  categoryId: string,
+  name: string,
+  month: string,
+  amount: number
+): PlanWithCategoryModel {
+  return new PlanWithCategoryModel({
+    id: `plan_${categoryId}_${month}`,
+    userId: USER,
     categoryId,
     periodMonth: monthToDate(month),
-    amount: { toString: () => amount.toFixed(2) },
+    amount: decimal(amount),
+    ...TIMESTAMPS,
     category: { name },
-  };
+  } as never);
+}
+
+function category(id: string, name: string): CategoryModel {
+  return new CategoryModel({
+    id,
+    userId: USER,
+    name,
+    archivedAt: null,
+    ...TIMESTAMPS,
+  } as never);
+}
+
+function lock(month: string): PeriodLockModel {
+  return new PeriodLockModel({
+    id: `lock_${month}`,
+    userId: USER,
+    periodMonth: monthToDate(month),
+    lockedAt: new Date(0),
+    note: null,
+  } as never);
 }
 
 function actual(categoryId: string, month: string, amount: number) {
@@ -45,19 +80,16 @@ function actual(categoryId: string, month: string, amount: number) {
 
 /** Builds a service whose repositories return exactly what a case needs. */
 function serviceWith(options: {
-  plans?: PlanRow[];
+  plans?: PlanWithCategoryModel[];
   actuals?: ReturnType<typeof actual>[];
   lockedMonths?: string[];
-  categories?: Array<{ id: string; name: string }>;
+  categories?: CategoryModel[];
 }) {
   const stubs = {
     plans: { listInRange: async () => options.plans ?? [] },
     actuals: { sumInRange: async () => options.actuals ?? [] },
     locks: {
-      listInRange: async () =>
-        (options.lockedMonths ?? []).map((month) => ({
-          periodMonth: monthToDate(month),
-        })),
+      listInRange: async () => (options.lockedMonths ?? []).map(lock),
     },
     categories: { list: async () => options.categories ?? [] },
     reports: {},
@@ -93,10 +125,7 @@ describe("the brief's sample quarter", () => {
       actual("pay", "2026-01", 20_500),
       actual("pay", "2026-02", 19_800),
     ],
-    categories: [
-      { id: "mkt", name: "Marketing" },
-      { id: "pay", name: "Payroll" },
-    ],
+    categories: [category("mkt", "Marketing"), category("pay", "Payroll")],
   });
 
   it.each([
@@ -152,7 +181,7 @@ describe("a plan of zero", () => {
     const service = serviceWith({
       plans: [plan("mkt", "Marketing", "2026-01", 0)],
       actuals: [actual("mkt", "2026-01", 300)],
-      categories: [{ id: "mkt", name: "Marketing" }],
+      categories: [category("mkt", "Marketing")],
     });
 
     const { rows } = await service.compute(USER, { from: "2026-01", to: "2026-01" });
@@ -166,7 +195,7 @@ describe("spend against a category with no target", () => {
     // Otherwise money leaves the account and the report never mentions it.
     const service = serviceWith({
       actuals: [actual("tools", "2026-01", 120)],
-      categories: [{ id: "tools", name: "Tools" }],
+      categories: [category("tools", "Tools")],
     });
 
     const { rows, totals } = await service.compute(USER, {
@@ -201,7 +230,7 @@ describe("months with no data at all", () => {
   it("still appear, so the chart axis stays continuous", async () => {
     const service = serviceWith({
       plans: [plan("mkt", "Marketing", "2026-01", 1_000)],
-      categories: [{ id: "mkt", name: "Marketing" }],
+      categories: [category("mkt", "Marketing")],
     });
 
     const { months } = await service.compute(USER, { from: "2026-01", to: "2026-03" });
@@ -228,7 +257,7 @@ describe("locks", () => {
         plan("mkt", "Marketing", "2026-02", 1_000),
       ],
       lockedMonths: ["2026-01"],
-      categories: [{ id: "mkt", name: "Marketing" }],
+      categories: [category("mkt", "Marketing")],
     });
 
     const { rows } = await service.compute(USER, { from: "2026-01", to: "2026-02" });
@@ -245,7 +274,7 @@ describe("rounding", () => {
     const service = serviceWith({
       plans: [plan("a", "A", "2026-01", 0.3)],
       actuals: [actual("a", "2026-01", 0.1)],
-      categories: [{ id: "a", name: "A" }],
+      categories: [category("a", "A")],
     });
 
     const { rows, totals } = await service.compute(USER, {
@@ -267,9 +296,9 @@ describe("ordering", () => {
         plan("m", "Mango", "2026-01", 1),
       ],
       categories: [
-        { id: "z", name: "Zebra" },
-        { id: "a", name: "Apple" },
-        { id: "m", name: "Mango" },
+        category("z", "Zebra"),
+        category("a", "Apple"),
+        category("m", "Mango"),
       ],
     });
 

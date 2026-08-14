@@ -10,7 +10,6 @@ import {
 } from "../repositories/reportRepository";
 import { CategoryServiceProvider, CategoryService } from "./categoryService";
 import { LockServiceProvider, LockService } from "./lockService";
-import { dateToMonth } from "../helpers/period";
 
 /**
  * Monthly targets.
@@ -59,7 +58,7 @@ export class PlanService {
     const plan = await this.plans.findById(userId, id);
     if (!plan) throw new NotFoundError("Plan");
 
-    await this.locks.assertOpen(userId, dateToMonth(plan.periodMonth));
+    await this.locks.assertOpen(userId, plan.month);
 
     await this.plans.delete(userId, id);
     await this.reports.bumpDataVersion(userId);

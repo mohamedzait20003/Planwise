@@ -366,3 +366,46 @@ actually carries, and a column of date strings discards it.
 query is already keyed on exactly those parameters, so the run arrives through
 the path that was always there — no second way to load a report, and re-picking
 the range you are on is a no-op rather than a refetch.
+
+---
+
+## 21 · Repositories return models, not rows
+
+**Decision.** Every repository read and write hands back a model. `Decimal` to
+`number` and `@db.Date` to `"YYYY-MM"` happen there, once. `wire.ts` keeps
+existing but only reshapes a model into the wire type.
+
+**Why.** The two conversions were being repeated at every call site — `compute`
+alone did `toNumber(plan.amount)` and `dateToMonth(plan.periodMonth)` per row,
+and the month conversion has a UTC trap in it that is silent when you get it
+wrong. Moving both to the boundary makes the number of places that can get it
+wrong equal to the number of models, not the number of queries.
+
+It also settled a duplication the codebase already had. Models existed and were
+used for `User`; the four in `budgetModel.ts` were imported by nothing while
+`wire.ts` did the same conversions on raw rows. Two layers were claiming the
+same job and only one was doing it.
+
+**Three shapes stay raw, on purpose.** `sumInRange` is a `groupBy` — the sum of
+many actuals is not an actual, and a model would have to invent an id and a note
+for it. `isLocked` returns a boolean, because the question is whether a row
+exists. Counts from `createMany` are counts.
+
+**Cost.** Repositories are wordier — a `findMany` becomes a `findMany` plus a
+`.map`. And a model is a class, so a test stub has to construct one rather than
+hand over a literal, which is what turned four lock-enforcement tests red until
+their stubs were updated.
+
+**That cost is also the guard.** The services read `existing.month`; a
+row-shaped literal supplies `undefined`, and `assertOpen(userId, undefined)`
+would pass every lock check silently. The type now refuses it, and the mutation
+check still confirms the tests fail when the rule is removed.
+
+**Every table gets a model, including the two that never leave the server.**
+`PasswordReset` and `EmailVerification` were initially skipped on the grounds
+that no caller sees one — `TokenRepository` returns a raw token or a `userId`
+and deletes the row on read. They were added anyway, because a model earns its
+place by owning a rule rather than by being serialized: "a token is dead once
+`expiresAt` passes" was written inline at both consume sites, and `isExpired`
+gives it one home. `tokenHash` is excluded from their DTOs so that nothing can
+later hand out the lookup key for a live token by default.
