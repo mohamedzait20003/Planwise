@@ -49,7 +49,7 @@ npm run dev            # dev server
 npm run build          # prisma generate && next build
 npm run lint           # eslint
 npm run typecheck      # tsc --noEmit
-npm test               # vitest — 90 unit tests
+npm test               # vitest — 103 unit tests
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 ```
@@ -134,6 +134,11 @@ Three cases the enforcement covers that a naive check misses:
   enters. Checking only the target would let a closed month be emptied.
 - **CSV import** rejects rows in locked months per-row, and still lands the rest.
 
+All three are asserted in
+[`tests/unit/lock-enforcement.test.ts`](tests/unit/lock-enforcement.test.ts),
+which also checks the repository was never called — so "refused" means nothing
+was written, not that an error was reported afterwards.
+
 ### How missing actuals are displayed
 
 **Summed as 0, shown as an em dash.**
@@ -147,6 +152,48 @@ make that distinction survive the wire.
 This is the brief's first option, chosen because the alternative — blanking
 Actual, Variance and Variance % — makes the column totals stop reconciling with
 the rows above them.
+
+### Indexing and querying at scale
+
+The dataset here is small. What carries the load as it grows:
+
+**Every index leads with `userId`.** `Actual [userId, periodMonth, categoryId]`
+and `Plan [userId, periodMonth]` mean the report's range scan is a scoped range
+read rather than a filtered table scan, and the same index serves both the scan
+and the `groupBy` that aggregates it.
+
+**Aggregation happens in Postgres, not JavaScript.** `sumInRange` uses `groupBy`
+rather than fetching rows and reducing them in the service. A year of daily
+entries is thousands of rows the report never needs individually — only their
+sums per category and month.
+
+**Reports are computed once and stored.** Cost scales with the range, so a
+ten-year query does not hold an HTTP connection open; a run is materialised into
+`ReportRun`/`ReportRow`/`ReportMonth` and read back on subsequent requests.
+Freshness is one integer compare — `User.dataVersion` — rather than a scan of
+plans and actuals to decide whether the stored answer still holds.
+
+What I would add next, in order:
+
+1. **Covering index** — `Actual (userId, periodMonth, categoryId) INCLUDE
+   (amount)`, so the aggregate is answered from the index without touching the
+   heap.
+2. **Partial index** — `WHERE archivedAt IS NULL` on `Category`. Nearly every
+   read wants only the active ones.
+3. **Partition `Actual` by year** past tens of millions of rows. Every query
+   already carries a month range, so pruning would be automatic.
+4. **Keyset pagination** on the actuals list, which is currently unbounded per
+   month. Fine at a few hundred entries, not at a few hundred thousand.
+
+**The known inefficiency, stated plainly.** `dataVersion` is one counter per
+user, so an actual logged in January marks *every* stored report stale, including
+one covering last year. It is a single integer compare instead of working out
+which ranges a write touches, and recomputing an unwanted report is currently
+cheaper than that bookkeeping. The trade reverses once reports get large or
+numerous, and the fix is to invalidate by overlapping range instead.
+
+Fuller reasoning, including the schema itself, is in
+[docs/DATA-MODEL.md](docs/DATA-MODEL.md#performance-at-scale).
 
 ---
 
@@ -196,14 +243,41 @@ Fuller reasoning for each significant choice is in
 ## Testing
 
 ```bash
-npm test           # 90 unit tests — variance, months, aggregation, CSV
+npm test           # 103 unit tests
 npm run test:e2e   # 20 end-to-end tests — public pages and the route guard
 ```
+
+The three rules the brief grades are each asserted directly:
+
+| Rule | Suite | What it proves |
+|---|---|---|
+| **Variance calculation** | [`variance.test.ts`](tests/unit/variance.test.ts) | The sign convention, the plan-of-zero null, and formatting — against the brief's own figures |
+| **Aggregation** | [`report-service.test.ts`](tests/unit/report-service.test.ts) | The plan/actual join, both edge cases and the totals, through the real `compute` with repositories stubbed |
+| **Lock enforcement** | [`lock-enforcement.test.ts`](tests/unit/lock-enforcement.test.ts) | Every write path refuses a closed month — including the two a naive check misses |
+
+Lock enforcement gets the most attention because it is the rule most easily
+implemented wrongly in a way that still looks right. Checking the month named in
+the *request* is the obvious approach and it is not enough, so the suite asserts
+that **delete and edit read the month off the stored row**, and that **moving an
+entry checks both months** — otherwise a closed month can be emptied one row at a
+time by a caller who simply never names it. Each case also asserts the
+repository was never called, so "refused" means nothing was written rather than
+an error being reported after the fact.
+
+Those tests need no database. Services take their repositories as constructor
+parameters, and `@Transactional` joins an existing transaction rather than
+opening one, so the real service bodies run against stubs.
+
+The suite was checked by breaking the rule it guards: removing the stored-month
+check from `ActualService.update` turns exactly the two relevant tests red, and
+restoring it turns them green.
 
 The unit suite runs in **America/New_York**, not UTC. Month handling is where
 this app is most likely to break, and the bug only appears west of Greenwich: a
 `DATE` read as local time turns `2026-01-01` into `2025-12-31`. Running in UTC
 would let those tests pass while the bug shipped.
 
-No test has yet run against a real database — see
-[ROADMAP](docs/ROADMAP.md).
+**What is not covered.** No automated test opens a Postgres connection, so
+migrations, the ownership `WHERE` clauses and Prisma's own query generation are
+verified by types and by hand, not by CI. A seeded database and the end-to-end
+journey behind it are the top of [ROADMAP](docs/ROADMAP.md).

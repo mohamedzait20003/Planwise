@@ -40,10 +40,16 @@ remains the piece most likely to need adjusting.
 
 ### 3 · Database-backed tests
 
+**Lock enforcement is no longer on this list.** It was, on the assumption that
+asserting it needed a real database — which was wrong. Services take their
+repositories as constructor parameters, and `@Transactional` joins an existing
+transaction rather than opening one, so `tests/unit/lock-enforcement.test.ts`
+runs the real service bodies against stubs. What remains here genuinely does
+need Postgres.
+
+
 With a seeded database, the tests that cannot exist today:
 
-- **Lock enforcement** — every write to a closed month answers 423. The brief
-  names this explicitly and it is the only untested product rule.
 - **Ownership** — user B cannot read or write user A's rows through a guessed id.
 - **The signed-in journey** — create a category, set a target, log an actual,
   read the report, lock the month, watch a write fail. `playwright.config.ts`

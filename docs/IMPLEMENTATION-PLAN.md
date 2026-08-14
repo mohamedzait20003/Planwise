@@ -79,9 +79,17 @@ cache can skip `postinstall` entirely.
 
 ### 8 · Tests
 
-90 unit tests and 20 end-to-end. The aggregation is asserted against the brief's
+103 unit tests and 20 end-to-end. The aggregation is asserted against the brief's
 figures with stubbed repositories, which is the first time those numbers were
 verified rather than reasoned about.
+
+Lock enforcement was added later, once it became clear it did not need a
+database after all: services take their repositories as constructor parameters
+and `@Transactional` joins an existing transaction rather than opening one, so
+the real service bodies run against stubs. The suite covers the two cases a
+naive check misses — delete and edit reading the month off the stored row, and a
+move checking both months — and was validated by mutation: removing the
+stored-month check turns exactly those tests red.
 
 ### 9 · Interface pass
 
@@ -107,8 +115,7 @@ shared timeline.
 | | Why it matters | Effort |
 |---|---|---|
 | **No seed script** | Listed under deliverables. Still the fastest way to get a new environment to a demonstrable state. | ~2h |
-| **No automated test touches Postgres** | Production exercises the queries by hand; CI still verifies them by types alone. | ~2h |
-| **Lock enforcement untested** | The rule most likely to be probed; its test needs a database. | ~1h |
+| **No automated test touches Postgres** | Migrations, the ownership `WHERE` clauses and Prisma's query generation are verified by types and by hand, not by CI. | ~2h |
 | **No session revocation** | A password reset does not invalidate an existing session. | ~2h |
 | **Production branch undecided** | `deploy.yml` triggers on `main`; the work is on `feat/landing-redesign`, so releases are manual. | ~0 |
 
@@ -123,12 +130,13 @@ that used to sit here, that nothing had ever reached Postgres, no longer holds.
 What is verified automatically:
 
 - typecheck, lint and production build pass
-- 90 unit tests, including the brief's exact figures through the real
-  aggregation
+- 103 unit tests, including the brief's exact figures through the real
+  aggregation, and lock enforcement on every write path
 - 20 end-to-end tests against a real browser and a real build
 
-What is verified **by hand only**: everything that touches the database. The
-happy path has been walked in production, but no test asserts it, so a
-regression in lock enforcement or ownership scoping would not turn anything red.
-That gap and a seed script are the same piece of work, and it is the top of
-[ROADMAP.md](ROADMAP.md).
+What is verified **by hand only**: everything that touches the database itself.
+The service-level rules are covered — variance, aggregation and lock enforcement
+all fail loudly if broken — but migrations, the ownership `WHERE` clauses and
+Prisma's own query generation are not, so a regression in ownership scoping would
+still turn nothing red. That gap and a seed script are the same piece of work,
+and it is the top of [ROADMAP.md](ROADMAP.md).
