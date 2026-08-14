@@ -35,6 +35,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
 
+    # The Vercel CLI reads these two from the environment rather than from a
+    # flag; together they are what `.vercel/project.json` holds locally, and
+    # without them `vercel pull` has a token but no idea which project to pull.
+    #
+    # VERCEL_TOKEN must be scoped to the team that owns this project. A token
+    # minted under a personal account authenticates successfully and then
+    # cannot see the project, which surfaces as the same "Could not retrieve
+    # Project Settings" error as a missing id — so scope it narrowly and treat
+    # it as granting deploy rights to this project alone.
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -56,6 +65,15 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
+
+      - name: Check Vercel credentials
+        run: |
+          : "${VERCEL_ORG_ID:?is empty — add it as a repository secret (orgId in .vercel/project.json)}"
+          : "${VERCEL_PROJECT_ID:?is empty — add it as a repository secret (projectId in .vercel/project.json)}"
+          : "${VERCEL_TOKEN:?is empty — add it as a repository secret, scoped to the team owning this project}"
+          echo "org ${VERCEL_ORG_ID:0:9}… project ${VERCEL_PROJECT_ID:0:9}…"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Pull Vercel environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
