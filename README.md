@@ -49,7 +49,7 @@ npm run dev            # dev server
 npm run build          # prisma generate && next build
 npm run lint           # eslint
 npm run typecheck      # tsc --noEmit
-npm test               # vitest — 134 unit tests
+npm test               # vitest — 153 unit tests
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 ```
@@ -270,7 +270,7 @@ Fuller reasoning for each significant choice is in
 ## Testing
 
 ```bash
-npm test           # 134 unit tests
+npm test           # 153 unit tests
 npm run test:e2e   # 20 end-to-end tests — public pages and the route guard
 ```
 

@@ -79,7 +79,7 @@ cache can skip `postinstall` entirely.
 
 ### 8 · Tests
 
-103 unit tests and 20 end-to-end. The aggregation is asserted against the brief's
+153 unit tests and 20 end-to-end. The aggregation is asserted against the brief's
 figures with stubbed repositories, which is the first time those numbers were
 verified rather than reasoned about.
 
@@ -130,7 +130,7 @@ that used to sit here, that nothing had ever reached Postgres, no longer holds.
 What is verified automatically:
 
 - typecheck, lint and production build pass
-- 103 unit tests, including the brief's exact figures through the real
+- 153 unit tests, including the brief's exact figures through the real
   aggregation, and lock enforcement on every write path
 - 20 end-to-end tests against a real browser and a real build
 

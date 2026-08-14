@@ -37,7 +37,10 @@ const SOLID_TINTS = [
  */
 function slotFor(id: string) {
   let hash = 0;
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  // `for...of` walks code points, so a character outside the BMP arrives whole.
+  // `charCodeAt` would read only its leading surrogate and collapse distinct
+  // characters onto the same value; `codePointAt` reads what the loop handed us.
+  for (const char of id) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
   return hash % CHIP_TINTS.length;
 }
 

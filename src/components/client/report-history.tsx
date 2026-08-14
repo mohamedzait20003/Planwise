@@ -15,25 +15,10 @@ import { LoadingRows } from "./states";
 import type { Category, ReportRunSummary } from "@/lib/api/types";
 import { categorySolid } from "@/lib/utils/category-color";
 import { currentMonth, monthShort, monthTerse, monthsBetween } from "@/lib/utils/month";
+import { formatRelativeTime } from "@/lib/utils/relative-time";
 import { cn } from "@/lib/utils/utils";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-
-const stamp = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-/** Relative for the first day, absolute after — "31h ago" stops helping. */
-function when(iso: string) {
-  const then = new Date(iso);
-  const minutes = Math.round((Date.now() - then.getTime()) / 60_000);
-
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h ago`;
-  return stamp.format(then);
-}
 
 /**
  * "Feb – Aug 2026" rather than "Feb 2026 – Aug 2026".
@@ -315,7 +300,7 @@ export function ReportHistory({
                 type="button"
                 onClick={() => onSelect(run)}
                 aria-current={isActive ? "true" : undefined}
-                aria-label={`${label}, ${rangeText}, ${span} months, ${status.label.toLowerCase()}, computed ${when(run.computedAt ?? run.requestedAt)}. Load this report.`}
+                aria-label={`${label}, ${rangeText}, ${span} months, ${status.label.toLowerCase()}, computed ${formatRelativeTime(run.computedAt ?? run.requestedAt)}. Load this report.`}
                 className={cn(
                   "grid w-full items-center rounded-xl px-3 py-2.5 text-left transition-colors",
                   "focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none",
@@ -383,7 +368,7 @@ export function ReportHistory({
                       ·
                     </span>
                     <span className="text-muted-foreground tabular">
-                      {when(run.computedAt ?? run.requestedAt)}
+                      {formatRelativeTime(run.computedAt ?? run.requestedAt)}
                     </span>
                   </span>
                 </span>
