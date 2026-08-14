@@ -184,6 +184,11 @@ src/
     utils/                      month.ts, variance.ts, category-color.ts,
                                 use-chart-size.ts, utils.ts   (client-side)
   proxy.ts                      route guard (Next 16's middleware)
+prisma/
+  schema.prisma
+  migrations/                   generated; `migrate deploy` applies them
+scripts/
+  seed.ts                       the brief's worked example, as a demo account
 tests/{unit,e2e}/
 ```
 

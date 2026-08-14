@@ -26,8 +26,25 @@ cp .env.example .env        # then fill DATABASE_URL and NEXTAUTH_SECRET
 openssl rand -base64 32     # a value for NEXTAUTH_SECRET
 
 npx prisma migrate deploy   # create the schema
+npm run seed                # optional — the brief's worked example
 npm run dev                 # http://localhost:3000
 ```
+
+**The seed is the fastest way to see the app working.** It creates a verified
+demo account holding the assignment's own figures:
+
+```
+demo@planwise.app / planwise-demo
+```
+
+Two categories, four plans, three actuals — with **Marketing February
+deliberately omitted**, because that is the case the missing-actual rule exists
+for. `2026-01` is locked, so the read-only path and the API's refusal are
+visible without setting anything up. Generate a report over `2026-01 … 2026-02`
+and the four rows match the brief's table exactly.
+
+It is idempotent: everything is keyed on something stable, so running it twice
+changes nothing.
 
 Every variable is documented inline in [`.env.example`](.env.example). Only two
 are required to boot: `DATABASE_URL` and `NEXTAUTH_SECRET`.
@@ -52,6 +69,7 @@ npm run typecheck      # tsc --noEmit
 npm test               # vitest — 153 unit tests
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
+npm run seed           # load the brief's sample data
 ```
 
 ## Running the report queue

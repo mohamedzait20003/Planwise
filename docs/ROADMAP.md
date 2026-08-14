@@ -6,19 +6,13 @@ Ordered by what unblocks the most, not by size.
 
 ## Now — closing the brief
 
-### 1 · Seed script
+### 1 · ~~Seed script~~ — done
 
-```bash
-npx prisma db seed
-```
+`npm run seed` creates a verified demo account holding the brief's figures,
+including the deliberately missing Marketing actual for February and one locked
+month. Idempotent, so a half-loaded database can be re-seeded safely.
 
-Two categories and the brief's exact figures, including the deliberately missing
-Marketing actual for February, plus one locked month so the read-only path is
-visible.
-
-It is first because it unblocks everything below it: the first real query against
-Postgres, a way to actually look at the screens, and the fixture the
-database-backed tests need. Roughly two hours.
+It also unblocks the database-backed tests below, which needed a fixture.
 
 ### 2 · ~~Deploy~~ — done, with one thread left
 

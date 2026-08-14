@@ -7,6 +7,9 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Prisma 7 takes the seed command here rather than from package.json.
+    // Node 24 strips types natively, so this needs no ts-node or tsx.
+    seed: "node scripts/seed.ts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],

@@ -103,18 +103,25 @@ page whose hero backdrop is the product's one rule drawn at wall size.
 min, 11.0 kB gzipped, measured. `d3-selection` and `d3-transition` are
 deliberately absent so React keeps the DOM.
 
-### 10 · Deployment and report history
+### 10 · Deployment, report history, and a recovered migration
 
 Deployed. Then the gap that only shows once there is data in it: a report is
 expensive to generate and there was no way back to one you had already run.
 `GET /api/client/report/runs` lists the stored runs, drawn on the screen as a
 shared timeline.
 
+**Where a third defect was found.** `prisma/migrations/` had been committed and
+then deleted, so `npx prisma migrate deploy` — the README's own setup step —
+applied nothing and a fresh clone got a database with no tables. Production was
+unaffected because its schema predated the deletion, which is exactly why it
+went unnoticed. The migration was regenerated from the schema and named to match
+the one the database already had recorded, so it reconciles rather than
+conflicts. A seed script landed with it.
+
 ## What is not done
 
 | | Why it matters | Effort |
 |---|---|---|
-| **No seed script** | Listed under deliverables. Still the fastest way to get a new environment to a demonstrable state. | ~2h |
 | **No automated test touches Postgres** | Migrations, the ownership `WHERE` clauses and Prisma's query generation are verified by types and by hand, not by CI. | ~2h |
 | **No session revocation** | A password reset does not invalidate an existing session. | ~2h |
 | **Production branch undecided** | `deploy.yml` triggers on `main`; the work is on `feat/landing-redesign`, so releases are manual. | ~0 |
