@@ -14,8 +14,6 @@ import { AuthShell } from "@/components/auth/auth-shell";
 function safePath(value: string | null): string | null {
   if (!value?.startsWith("/")) return null;
 
-  // "//evil.com" is a protocol-relative URL, not a path — the browser treats it
-  // as absolute, so it has to be rejected alongside "https://evil.com".
   if (value.startsWith("//")) return null;
 
   return value;

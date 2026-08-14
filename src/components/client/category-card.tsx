@@ -148,7 +148,7 @@ function CategoryMeta({
   );
 }
 
-/* -------------------------------------------------------------------- card */
+/* Category card */
 
 export function CategoryCard({
   category,

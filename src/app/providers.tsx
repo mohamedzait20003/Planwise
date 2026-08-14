@@ -29,10 +29,6 @@ export function Providers({
 }>) {
   const [queryClient] = useState(makeQueryClient);
 
-  // Reading stored preferences is exactly what an effect is for: synchronising
-  // React with an external system, once, on the client. Done here rather than
-  // per screen so every page sees the same value without each remembering to
-  // ask for it.
   useEffect(() => {
     rehydratePreferences();
   }, []);
