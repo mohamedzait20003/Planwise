@@ -113,6 +113,11 @@ export function MoneyInput({
       className={cn(
         "inline-flex items-stretch overflow-hidden rounded-xl border border-input bg-background transition-all",
         "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40",
+        // A floor, not a preference. The two steppers take 80px and the "$"
+        // another 20 before a digit is drawn, so a caller that sizes this by
+        // eye can leave the number with ~44px and clip a four-figure amount
+        // against the overflow-hidden above. 192px holds "999,999.99".
+        "min-w-48",
         disabled && "bg-muted opacity-70",
         "dark:bg-input/30",
         className

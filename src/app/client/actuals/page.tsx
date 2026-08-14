@@ -134,7 +134,7 @@ function EditableEntry({
             disabled={disabled}
             step={50}
             label={`Amount for ${entry.note ?? "this entry"}`}
-            className={cn("w-40", update.isError && "border-unfavorable")}
+            className={cn("w-48", update.isError && "border-unfavorable")}
           />
         </div>
       </TableCell>
