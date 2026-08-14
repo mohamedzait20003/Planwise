@@ -65,12 +65,12 @@ export class GmailMailTransport implements MailTransport {
 }
 
 function transportFromEnv(): MailTransport {
-  const user = process.env.GMAIL_USER;
-  const appPassword = process.env.GMAIL_APP_PASSWORD;
+  const user = process.env.EMAIL_USER;
+  const appPassword = process.env.EMAIL_PASSWORD;
 
   if (!user || !appPassword) {
     console.warn(
-      "[mail] GMAIL_USER / GMAIL_APP_PASSWORD unset — using the log transport. No mail will be delivered."
+      "[mail] EMAIL_USER / EMAIL_PASSWORD unset — using the log transport. No mail will be delivered."
     );
     return new LogMailTransport();
   }

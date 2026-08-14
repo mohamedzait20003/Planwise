@@ -32,7 +32,7 @@ Stack, contracts, environment, conventions.
 | `NEXTAUTH_SECRET` | **yes** | Signs and encrypts the session cookie |
 | `NEXTAUTH_URL` | in production | Callback origin; also decides the cookie's `__Secure-` prefix |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | no | Google sign-in; button fails on click without them |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` / `MAIL_FROM` | no | SMTP; unset logs mail instead of sending |
+| `EMAIL_USER` / `EMAIL_PASSWORD` / `MAIL_FROM` | no | SMTP; unset logs mail instead of sending |
 | `REPORTS_INLINE` | no | `"1"` computes reports on the request instead of queueing |
 
 `NEXTAUTH_URL` starting `https://` switches next-auth to the `__Secure-` cookie

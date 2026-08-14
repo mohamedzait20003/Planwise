@@ -49,7 +49,7 @@ changes nothing.
 Every variable is documented inline in [`.env.example`](.env.example). Only two
 are required to boot: `DATABASE_URL` and `NEXTAUTH_SECRET`.
 
-**Mail is optional.** Leave `GMAIL_*` unset and verification and reset emails are
+**Mail is optional.** Leave `EMAIL_*` unset and verification and reset emails are
 written to the server log with the links intact — which is how you complete a
 sign-up locally without a Google account.
 
