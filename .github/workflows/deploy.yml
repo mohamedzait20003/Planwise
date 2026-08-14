@@ -105,13 +105,8 @@ jobs:
 
           # A variable stored with Vercel's "Sensitive" type cannot be read back:
           # `pull` writes the literal string [SENSITIVE] where the value should
-          # be. Unset is safe, a placeholder is not — code that parses its
-          # variable at import time gets something that looks real and isn't.
-          # NEXTAUTH_URL is the one that bites: next-auth prefixes anything not
-          # starting with http:// and calls new URL(), so [SENSITIVE] becomes
-          # https://[SENSITIVE] and throws while prerendering. Vercel injects the
-          # real values into the running function, so dropping them from the
-          # build environment costs nothing at runtime.
+          # be. Drop those — Vercel injects the real values into the running
+          # function, so the build loses nothing by not holding them.
           env_file=.vercel/.env.production.local
           [ -f "$env_file" ] || exit 0
 
@@ -121,8 +116,29 @@ jobs:
             sed -i '/="\[SENSITIVE\]"$/d' "$env_file"
           fi
 
+          # NEXTAUTH_URL has to PARSE at build time — absent is fine, empty is
+          # not, and deleting the line above yields empty rather than absent.
+          # next-auth reads it at module scope through parseUrl(), whose
+          # `?? defaultUrl` fallback catches undefined but not "", so an empty
+          # one sails into new URL("") and throws ERR_INVALID_URL, taking down
+          # the prerender of every page that reaches providers.tsx.
+          #
+          # The value is throwaway and stays out of the deployed artifact: the
+          # server bundle keeps `process.env.NEXTAUTH_URL` as a runtime read and
+          # the client bundle resolves next-auth's basePath to /api/auth on its
+          # own, so nothing embeds what is written here (grep .next for it after
+          # a build to confirm). Vercel injects the real Sensitive value into the
+          # running function. Use next-auth's own default, so the build behaves
+          # exactly as it would if the variable had never been set.
+          sed -i '/^NEXTAUTH_URL=/d' "$env_file"
+          echo 'NEXTAUTH_URL="http://localhost:3000"' >> "$env_file"
+
       - name: Build
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        # The same placeholder, in case the CLI re-injects the empty value after
+        # reading the env file rather than before.
+        env:
+          NEXTAUTH_URL: http://localhost:3000
 
       - name: Deploy
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
