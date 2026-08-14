@@ -120,6 +120,7 @@ export class ActualModel {
   readonly note: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  readonly deletedAt: Date | null;
 
   constructor(row: PrismaActual) {
     this.id = row.id;
@@ -130,6 +131,12 @@ export class ActualModel {
     this.note = row.note;
     this.createdAt = row.createdAt;
     this.updatedAt = row.updatedAt;
+    this.deletedAt = row.deletedAt;
+  }
+
+  /** Removed, but still on the record — see the schema for why it is kept. */
+  get isDeleted(): boolean {
+    return this.deletedAt !== null;
   }
 
   get month(): string {

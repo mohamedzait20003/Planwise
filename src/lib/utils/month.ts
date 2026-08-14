@@ -38,8 +38,51 @@ export function toMonth(date: Date): string {
   return `${year}-${month}`;
 }
 
-export function currentMonth(): string {
-  return toMonth(new Date());
+/**
+ * The calendar month an instant falls in, read in a named IANA zone.
+ *
+ * `formatToParts` rather than string-slicing a formatted date: the parts are
+ * labelled, so this cannot break on a locale that orders or punctuates dates
+ * differently.
+ *
+ * This does not make a stored month zone-dependent, and must not. `"2026-08"`
+ * means August wherever it is read — the zone only decides *which* month the
+ * present moment belongs to, which is a different question and the only one a
+ * timezone can legitimately answer here.
+ */
+export function monthIn(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+
+  // An unknown zone makes Intl throw before this, so a missing part would mean
+  // an engine without the fields at all; falling back to local beats crashing.
+  return year && month ? `${year}-${month}` : toMonth(date);
+}
+
+/**
+ * Today's month.
+ *
+ * With no zone this reads the host's, which is what every caller wanted before
+ * the preference existed and remains the default.
+ */
+export function currentMonth(timeZone?: string | null): string {
+  return timeZone ? monthIn(new Date(), timeZone) : toMonth(new Date());
+}
+
+/** Whether a string is a zone this runtime knows. */
+export function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Shifts by whole months; `delta` may be negative. Rolls the year over. */

@@ -93,6 +93,8 @@ function spyRepo() {
     upsert: vi.fn(async () => ({ id: "plan_1" })),
     delete: vi.fn(async () => true),
     create: vi.fn(async () => ({ id: "actual_1" })),
+    softDelete: vi.fn(async () => true),
+    restore: vi.fn(async () => true),
     update: vi.fn(async () => ({ id: "actual_1" })),
     createMany: vi.fn(async (rows: unknown[]) => rows.length),
   };
@@ -261,7 +263,45 @@ describe("ActualService", () => {
     await expect(service.delete(USER, "actual_1")).rejects.toThrow(
       PeriodLockedError
     );
+    expect(repo.softDelete).not.toHaveBeenCalled();
+  });
+
+  /* --------------------------------------------------- soft delete + restore */
+
+  it("soft-deletes rather than destroying, in an open month", async () => {
+    const { service, repo } = actualService(["2026-01"], {
+      findById: async () => storedActual("2026-02"),
+    });
+
+    await service.delete(USER, "actual_1");
+
+    // The row is marked, not removed — that is the whole point of the change,
+    // and a hard delete would take the locked month's history with it.
+    expect(repo.softDelete).toHaveBeenCalledOnce();
     expect(repo.delete).not.toHaveBeenCalled();
+  });
+
+  it("refuses to restore into a closed month", async () => {
+    // Restoring changes what a month totals just as surely as deleting does.
+    // A lock that stopped one and not the other would only half exist.
+    const { service, repo } = actualService(["2026-01"], {
+      findById: async () => storedActual("2026-01"),
+    });
+
+    await expect(service.restore(USER, "actual_1")).rejects.toThrow(
+      PeriodLockedError
+    );
+    expect(repo.restore).not.toHaveBeenCalled();
+  });
+
+  it("restores in an open month", async () => {
+    const { service, repo } = actualService(["2026-01"], {
+      findById: async () => storedActual("2026-02"),
+    });
+
+    await service.restore(USER, "actual_1");
+
+    expect(repo.restore).toHaveBeenCalledOnce();
   });
 });
 

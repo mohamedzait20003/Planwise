@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createActual,
   deleteActual,
+  restoreActual,
   getActuals,
   importActuals,
   updateActual,
@@ -51,6 +52,11 @@ export function useUpdateActual() {
 
 export function useDeleteActual() {
   return useActualMutation(deleteActual);
+}
+
+/** Undoes a delete. Invalidates the same keys, since totals move back. */
+export function useRestoreActual() {
+  return useActualMutation(restoreActual);
 }
 
 /**

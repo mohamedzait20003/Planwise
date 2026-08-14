@@ -39,6 +39,21 @@ export async function deleteActual(
   return res.data;
 }
 
+/**
+ * Puts a soft-deleted entry back.
+ *
+ * A separate call rather than a PATCH, because the endpoint that edits an entry
+ * refuses a deleted one — restoring is a different act with the same lock rule.
+ */
+export async function restoreActual(
+  id: string
+): Promise<ApiEnvelope<undefined>> {
+  const res = await baseApi.post<ApiEnvelope<undefined>>(
+    `/client/actuals/${id}/restore`
+  );
+  return res.data;
+}
+
 export async function importActuals(
   file: File
 ): Promise<ApiEnvelope<ImportResult>> {

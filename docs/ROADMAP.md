@@ -111,13 +111,23 @@ Each of these is a deliberate trade that becomes wrong at a knowable point.
 
 ---
 
-## Explicitly not planned
+## Previously not planned, since reversed
 
-- **Per-user timezones.** Months are calendar months; the app is zone-free by
-  design and adding zones would reintroduce the bug class the string format
-  removes.
-- **Soft-deleting actuals.** They are entries, not records of record. Categories
-  archive because history references them; actuals do not have that problem.
-- **A component test layer.** The logic worth testing is in the domain, and
-  Playwright covers the rest against a real browser. A jsdom layer between them
-  would assert that components do what they say rather than what users need.
+All three of these were argued against here. Each argument is recorded with what
+actually happened, because two of them were half right and one was wrong.
+
+- **Per-user timezones.** *Was:* months are calendar months, and zones would
+  reintroduce the bug the string format removes. *Still true of storage* — and
+  the implementation respects it. A zone answers only "which month is now",
+  which is a different question, and `timezone.test.ts` asserts that a stored
+  month means the same thing in every zone.
+- **Soft-deleting actuals.** *Was:* they are entries, not records of record.
+  That is wrong once a month can be locked: a closed month has to be able to
+  account for what it contained, and a hard delete takes that with it. The lock
+  now guards restore as well as delete, since restoring changes a month's total
+  just as surely.
+- **A component test layer.** *Was:* it would assert what components say rather
+  than what users need. Fair as a risk, so the layer only tests promises a user
+  depends on — and it immediately found `MoneyInput` **committing the edit that
+  Escape was meant to discard**, plus a `Segmented` option announcing itself as
+  "Active12". Neither was reachable from the domain suite or from Playwright.

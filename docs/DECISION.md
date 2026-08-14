@@ -409,3 +409,70 @@ place by owning a rule rather than by being serialized: "a token is dead once
 `expiresAt` passes" was written inline at both consume sites, and `isExpired`
 gives it one home. `tokenHash` is excluded from their DTOs so that nothing can
 later hand out the lookup key for a live token by default.
+
+---
+
+## 22 · Actuals are soft-deleted, and restore is lock-checked
+
+**Decision.** `Actual.deletedAt` replaces the hard delete. Every read filters on
+it. Restoring is its own endpoint and passes the same `assertOpen` the delete
+did.
+
+**Why the earlier reasoning was wrong.** This was listed as not planned, on the
+grounds that an actual is an entry rather than a record of record. That holds
+right up until a month can be locked. A closed month has to be able to account
+for what it contained, and a hard delete removes the evidence — the API refuses
+to *edit* a locked month while a delete could empty it and leave nothing behind.
+
+**Restore is the half that is easy to miss.** Putting an entry back changes what
+a month totals just as surely as removing it, so a lock that guarded only the
+delete would exist in one direction. `lock-enforcement.test.ts` asserts both,
+and the mutation check confirms removing either guard turns a test red.
+
+**Cost.** Every read of `actuals` now carries `deletedAt: null`, and forgetting
+it in one place would let a deleted entry keep contributing to a report. The
+index leads with the column so the common read stays a single scan.
+
+---
+
+## 23 · Timezones answer "which month is now", and nothing else
+
+**Decision.** A browser-stored IANA zone decides which month the present moment
+falls in. It never touches a stored month.
+
+**Why this does not reopen decision 1.** That decision made months zone-free
+strings so `"2026-01"` could not become December on the way through a `Date`.
+Still true, and `timezone.test.ts` asserts it directly: `quarterOf` and
+`monthsBetween` produce identical answers whatever zone asked. The zone is
+consulted at exactly one boundary — turning *now* into a month — which is a
+question the string format never answered and a real one for someone reporting
+on a business in another country.
+
+**Cost.** A screen holding a month in state has to *derive* it rather than seed
+state with it, or the value captured before the preference rehydrates is the one
+it keeps. Two screens were changed for that reason.
+
+---
+
+## 24 · A component test layer, scoped to promises rather than markup
+
+**Decision.** jsdom and Testing Library, in a separate Vitest project from the
+domain suite.
+
+**Why the objection was reasonable and still wrong.** The argument against was
+that such a layer asserts what components say rather than what users need. That
+is a real failure mode, so the scope is narrow: every test names a promise a
+user relies on — Escape abandons an edit, holding a stepper saves once, a
+segmented control is one tab stop with arrows inside it — and every query is by
+role and accessible name, so a restyle cannot break one and a semantic
+regression cannot pass one.
+
+**It paid for itself immediately.** `MoneyInput` was **committing the edit that
+Escape was supposed to discard**: `blur()` dispatches synchronously, so the
+handler ran before the state update meant to tell it to abandon. And a
+`Segmented` option with a count announced itself as "Active12". Neither is
+reachable from the domain suite, and neither is what an end-to-end test is for.
+
+**Cost.** Four dev dependencies and a second Vitest project. The projects are
+split so the domain suite keeps running in Node — a DOM there would be slower
+and would let a domain test quietly depend on a browser global.

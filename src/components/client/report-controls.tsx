@@ -37,6 +37,21 @@ const MONTH_NAMES = Array.from({ length: 12 }, (_, index) =>
 );
 
 /**
+ * Every zone this runtime knows, or a short list if it cannot say.
+ *
+ * `supportedValuesOf` is the only way to get the real list without shipping a
+ * copy of the tz database that goes stale. The fallback exists because it is a
+ * relatively recent API and a missing selector is worse than a partial one.
+ */
+const TIME_ZONES: string[] = (() => {
+  try {
+    return Intl.supportedValuesOf("timeZone");
+  } catch {
+    return ["UTC", "America/New_York", "Europe/London", "Asia/Dubai"];
+  }
+})();
+
+/**
  * What a report is going to be run over.
  *
  * Presets first, free months second. Nearly every run is a quarter or a year,
@@ -77,6 +92,8 @@ export function ReportControls({
 
   const fiscalYearStart = usePreferences((state) => state.fiscalYearStart);
   const setFiscalYearStart = usePreferences((state) => state.setFiscalYearStart);
+  const timeZone = usePreferences((state) => state.timeZone);
+  const setTimeZone = usePreferences((state) => state.setTimeZone);
 
   // Every preset is derived from the fiscal start, so a January start produces
   // exactly the calendar ranges it did before this setting existed.
@@ -268,10 +285,11 @@ export function ReportControls({
           </p>
         )}
 
-        {/* The setting sits with the summary it changes rather than in a
-            settings screen: it only affects how these presets are cut, and the
-            span above is the immediate proof of what it did. */}
-        <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+        {/* Both settings sit with the summary they change rather than in a
+            settings screen: they only affect how these presets are cut, and the
+            span above is the immediate proof of what they did. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
           Fiscal year starts
           <select
             value={fiscalYearStart}
@@ -286,6 +304,23 @@ export function ReportControls({
             ))}
           </select>
         </label>
+
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Months follow
+          <select
+            value={timeZone ?? ""}
+            onChange={(event) => setTimeZone(event.target.value || null)}
+            className="h-8 max-w-44 rounded-lg border border-input bg-background px-2 text-xs transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none dark:bg-input/30"
+          >
+            <option value="">This device</option>
+            {TIME_ZONES.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        </div>
       </div>
     </section>
   );

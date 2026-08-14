@@ -66,7 +66,7 @@ npm run dev            # dev server
 npm run build          # prisma generate && next build
 npm run lint           # eslint
 npm run typecheck      # tsc --noEmit
-npm test               # vitest — 153 unit tests
+npm test               # vitest — 199 tests (unit + component)
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 npm run seed           # load the brief's sample data
@@ -246,6 +246,8 @@ Fuller reasoning, including the schema itself, is in
 
 | Assumption | Consequence |
 |---|---|
+| Deleting an actual hides it, never erases it | `deletedAt` is set and every read filters it; a locked month can still account for what it contained. Restore is lock-checked on the same terms as delete |
+| Fiscal year and timezone are browser preferences | They change how ranges are labelled and which month is "now", never a stored figure — so no column and no migration. They do not follow you to another browser |
 | One currency, USD, no conversion | Amounts are `Decimal(14,2)`; a multi-currency workspace needs a currency column and a rate table |
 | Categories are archived, never deleted | Plans and actuals reference them `onDelete: Restrict`, so deleting would take history with it |
 | A user's data is scoped by `userId` in every query | There is no row-level security behind it; a repository that forgets the scope is the failure mode |
@@ -288,7 +290,7 @@ Fuller reasoning for each significant choice is in
 ## Testing
 
 ```bash
-npm test           # 153 unit tests
+npm test           # 199 tests
 npm run test:e2e   # 20 end-to-end tests — public pages and the route guard
 ```
 
@@ -300,6 +302,8 @@ The three rules the brief grades are each asserted directly:
 | **Aggregation** | [`report-service.test.ts`](tests/unit/report-service.test.ts) | The plan/actual join, both edge cases and the totals, through the real `compute` with repositories stubbed |
 | **Lock enforcement** | [`lock-enforcement.test.ts`](tests/unit/lock-enforcement.test.ts) | Every write path refuses a closed month — including the two a naive check misses |
 | **Fiscal years** | [`fiscal.test.ts`](tests/unit/fiscal.test.ts) | Shifted-origin date maths, both edges: the month before the year opens, and the quarter that crosses the new year |
+| **Timezones** | [`timezone.test.ts`](tests/unit/timezone.test.ts) | A zone changes which month "now" is, and changes nothing about a stored month |
+| **Components** | [`tests/component/`](tests/component/) | Editing and keyboard contracts in jsdom — the layer that caught Escape saving the edit it should discard |
 
 Lock enforcement gets the most attention because it is the rule most easily
 implemented wrongly in a way that still looks right. Checking the month named in

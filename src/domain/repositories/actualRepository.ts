@@ -17,6 +17,7 @@ export class ActualRepository {
     const rows = await db().actual.findMany({
       where: {
         userId,
+        deletedAt: null,
         ...(month ? { periodMonth: monthToDate(month) } : {}),
         ...(categoryId ? { categoryId } : {}),
       },
@@ -44,6 +45,9 @@ export class ActualRepository {
       by: ["categoryId", "periodMonth"],
       where: {
         userId,
+        // Without this a deleted entry keeps contributing to every report,
+        // which is the whole failure mode soft delete invites.
+        deletedAt: null,
         ...(categoryId ? { categoryId } : {}),
         periodMonth: { gte: monthToDate(from), lte: monthToDate(to) },
       },
@@ -51,8 +55,24 @@ export class ActualRepository {
     });
   }
 
+  /**
+   * Finds an entry whether or not it is deleted.
+   *
+   * Restore needs the deleted row, and so does the lock check in front of it —
+   * the month a removal has to be judged against is the one stored on the row,
+   * and filtering it out here would make a deleted entry unrestorable and
+   * unguarded at once.
+   */
   async findById(userId: string, id: string): Promise<ActualModel | null> {
     const row = await db().actual.findFirst({ where: { id, userId } });
+    return row && new ActualModel(row);
+  }
+
+  /** Live entries only — what a caller means by "does this still exist". */
+  async findLiveById(userId: string, id: string): Promise<ActualModel | null> {
+    const row = await db().actual.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
     return row && new ActualModel(row);
   }
 
@@ -111,7 +131,9 @@ export class ActualRepository {
     }
   ): Promise<ActualModel | null> {
     const { count } = await db().actual.updateMany({
-      where: { id, userId },
+      // A deleted entry is not editable — restore it first. Without the guard
+      // an edit would silently write to a row nothing else can see.
+      where: { id, userId, deletedAt: null },
       data: {
         ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
         ...(data.month !== undefined ? { periodMonth: monthToDate(data.month) } : {}),
@@ -123,8 +145,23 @@ export class ActualRepository {
     return count > 0 ? this.findById(userId, id) : null;
   }
 
-  async delete(userId: string, id: string): Promise<boolean> {
-    const { count } = await db().actual.deleteMany({ where: { id, userId } });
+  /**
+   * Marks an entry deleted. Idempotent: deleting an already-deleted entry is
+   * not an error, and must not move the timestamp that recorded the first one.
+   */
+  async softDelete(userId: string, id: string): Promise<boolean> {
+    const { count } = await db().actual.updateMany({
+      where: { id, userId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+    return count > 0;
+  }
+
+  async restore(userId: string, id: string): Promise<boolean> {
+    const { count } = await db().actual.updateMany({
+      where: { id, userId, deletedAt: { not: null } },
+      data: { deletedAt: null },
+    });
     return count > 0;
   }
 }

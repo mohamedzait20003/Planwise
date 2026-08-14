@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   DownloadIcon,
@@ -19,7 +19,7 @@ import { VarianceHero } from "@/components/client/variance-hero";
 import { ReportControls } from "@/components/client/report-controls";
 import { ReportHistory } from "@/components/client/report-history";
 import { DrillDown } from "@/components/client/drill-down";
-import { rehydratePreferences, usePreferences } from "@/lib/stores/preferences";
+import { useCurrentMonth, usePreferences } from "@/lib/stores/preferences";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
 import {
@@ -52,7 +52,7 @@ import {
   useReportHistory,
   downloadReportCsv,
 } from "@/lib/hooks";
-import { currentMonth, fiscalQuarterOf, monthShort } from "@/lib/utils/month";
+import { fiscalQuarterOf, monthShort } from "@/lib/utils/month";
 import type { MonthRange } from "@/lib/utils/month";
 import { formatCurrency, formatSignedCurrency } from "@/lib/utils/variance";
 import type { ReportRow } from "@/lib/api/types";
@@ -140,7 +140,7 @@ function byMonth(rows: ReportRow[]): Array<[month: string, rows: ReportRow[]]> {
 }
 
 export default function ReportPage() {
-  const anchor = currentMonth();
+  const anchor = useCurrentMonth();
   const fiscalYearStart = usePreferences((state) => state.fiscalYearStart);
 
   /**
@@ -158,12 +158,6 @@ export default function ReportPage() {
 
   /** The report cell whose underlying entries are open, if any. */
   const [drillRow, setDrillRow] = useState<ReportRow | null>(null);
-
-  // Reading a stored preference is exactly what an effect is for: synchronising
-  // React with an external system, once, on the client.
-  useEffect(() => {
-    rehydratePreferences();
-  }, []);
 
   const categories = useCategories();
   const history = useReportHistory();

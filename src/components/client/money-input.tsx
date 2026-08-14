@@ -71,6 +71,16 @@ export function MoneyInput({
   const [focused, setFocused] = useState(false);
   const timer = useRef<number | undefined>(undefined);
 
+  /**
+   * Set by Escape so the blur it triggers knows not to save.
+   *
+   * A ref rather than state, and that is the whole point: `blur()` dispatches
+   * synchronously, so `onBlur` runs before any state update from the same
+   * handler has been applied and would still read the abandoned draft. Escape
+   * used to commit the edit it was meant to discard.
+   */
+  const abandoning = useRef(false);
+
   const committed = value === undefined ? "" : String(value);
   const raw = draft ?? committed;
   const shown = focused || raw === "" ? raw : grouped.format(Number(raw) || 0);
@@ -157,6 +167,13 @@ export function MoneyInput({
           onChange={(event) => edit(sanitize(event.target.value))}
           onBlur={() => {
             setFocused(false);
+
+            if (abandoning.current) {
+              abandoning.current = false;
+              setDraft(null);
+              return;
+            }
+
             commit(raw);
           }}
           onKeyDown={(event) => {
@@ -165,7 +182,8 @@ export function MoneyInput({
               return;
             }
             if (event.key === "Escape") {
-              setDraft(null);
+              abandoning.current = true;
+              // The draft is cleared in onBlur, once the flag has been read.
               event.currentTarget.blur();
               return;
             }

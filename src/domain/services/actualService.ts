@@ -93,6 +93,14 @@ export class ActualService {
     return updated;
   }
 
+  /**
+   * Removes an entry without destroying it.
+   *
+   * The lock is checked against the month on the *stored row*, exactly as a
+   * hard delete was: soft-deleting out of a closed month is the same act as
+   * deleting out of one, and turning the delete into an update must not turn it
+   * into a way around the rule.
+   */
   @Transactional()
   async delete(userId: string, id: string): Promise<void> {
     const existing = await this.actuals.findById(userId, id);
@@ -100,7 +108,25 @@ export class ActualService {
 
     await this.locks.assertOpen(userId, existing.month);
 
-    await this.actuals.delete(userId, id);
+    await this.actuals.softDelete(userId, id);
+    await this.reports.bumpDataVersion(userId);
+  }
+
+  /**
+   * Puts a deleted entry back.
+   *
+   * Lock-checked on the same terms as the delete. Restoring into a closed month
+   * changes what that month totals just as surely as removing from it does, so
+   * a lock has to refuse both or it only half exists.
+   */
+  @Transactional()
+  async restore(userId: string, id: string): Promise<void> {
+    const existing = await this.actuals.findById(userId, id);
+    if (!existing) throw new NotFoundError("Actual");
+
+    await this.locks.assertOpen(userId, existing.month);
+
+    await this.actuals.restore(userId, id);
     await this.reports.bumpDataVersion(userId);
   }
 

@@ -29,7 +29,8 @@ import {
 import { Money, VarianceAmount } from "@/components/client/variance";
 import { Button } from "@/components/ui/button";
 import { useCategories, useGenerateReport, useLocks, useReport } from "@/lib/hooks";
-import { currentMonth, lastMonths, monthLong } from "@/lib/utils/month";
+import { lastMonths, monthLong } from "@/lib/utils/month";
+import { useCurrentMonth } from "@/lib/stores/preferences";
 import { formatCurrency } from "@/lib/utils/variance";
 
 /**
@@ -107,7 +108,7 @@ function QuickLink({
 }
 
 export default function DashboardPage() {
-  const thisMonth = currentMonth();
+  const thisMonth = useCurrentMonth();
   const range = lastMonths(thisMonth, WINDOW);
 
   const report = useReport(range);

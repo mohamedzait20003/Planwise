@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -11,6 +11,7 @@ import {
   PlusIcon,
   ReceiptTextIcon,
   Trash2Icon,
+  UndoIcon,
   TriangleAlertIcon,
   UploadIcon,
 } from "lucide-react";
@@ -40,15 +41,20 @@ import {
   useCategories,
   useCreateActual,
   useDeleteActual,
+  useRestoreActual,
   useImportActuals,
   useLocks,
   useUpdateActual,
 } from "@/lib/hooks";
 import type { Actual } from "@/lib/api/types";
-import { currentMonth, monthLong } from "@/lib/utils/month";
+import { monthLong } from "@/lib/utils/month";
+import { useCurrentMonth } from "@/lib/stores/preferences";
 import { categorySolid } from "@/lib/utils/category-color";
 import { formatCurrency } from "@/lib/utils/variance";
 import { cn } from "@/lib/utils/utils";
+
+/** How long a deleted entry keeps its undo on screen. */
+const UNDO_LINGER_MS = 8_000;
 
 /**
  * What was actually spent.
@@ -405,12 +411,34 @@ function ImportPanel({ disabled }: Readonly<{ disabled: boolean }>) {
 }
 
 export default function ActualsPage() {
-  const [month, setMonth] = useState(currentMonth);
+  // Derived, not seeded: state captured before the stored preference arrives
+  // would keep the device's month even after the zone loads.
+  const thisMonth = useCurrentMonth();
+  const [chosenMonth, setMonth] = useState<string | null>(null);
+  const month = chosenMonth ?? thisMonth;
 
   const categories = useCategories();
   const actuals = useActuals(month);
   const locks = useLocks();
   const remove = useDeleteActual();
+  const restore = useRestoreActual();
+
+  /**
+   * The entry deleted a moment ago.
+   *
+   * Deletion is now reversible, and a row that vanishes silently does not look
+   * reversible — so the undo stays on screen for a few seconds rather than
+   * living only in an API nobody knows about.
+   */
+  const [undoable, setUndoable] = useState<{ id: string; label: string } | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (!undoable) return;
+    const timer = setTimeout(() => setUndoable(null), UNDO_LINGER_MS);
+    return () => clearTimeout(timer);
+  }, [undoable]);
 
   const locked = (locks.data ?? []).some((lock) => lock.month === month);
   const entries = actuals.data ?? [];
@@ -485,6 +513,41 @@ export default function ActualsPage() {
             </Panel>
           )}
 
+          <AnimatePresence>
+            {undoable && (
+              <motion.div
+                key={undoable.id}
+                role="status"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/60 px-4 py-3 text-sm ring-1 ring-border"
+              >
+                <p className="text-muted-foreground">
+                  Removed{" "}
+                  <span className="font-medium text-foreground">
+                    {undoable.label}
+                  </span>
+                  . It is kept on the record, not erased.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={restore.isPending}
+                  onClick={() =>
+                    restore.mutate(undoable.id, {
+                      onSuccess: () => setUndoable(null),
+                    })
+                  }
+                >
+                  <UndoIcon aria-hidden />
+                  Undo
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <Panel title="Entries" bodyClassName="p-0">
             {loading && <LoadingRows rows={5} className="p-5" />}
 
@@ -540,7 +603,18 @@ export default function ActualsPage() {
                               size="icon"
                               aria-label={`Delete entry of ${formatCurrency(entry.amount)}`}
                               disabled={locked || remove.isPending}
-                              onClick={() => remove.mutate(entry.id)}
+                              onClick={() =>
+                                remove.mutate(entry.id, {
+                                  onSuccess: () =>
+                                    setUndoable({
+                                      id: entry.id,
+                                      label:
+                                        entry.note ??
+                                        names.get(entry.categoryId) ??
+                                        "that entry",
+                                    }),
+                                })
+                              }
                               className={cn(
                                 "size-8 rounded-lg text-muted-foreground",
                                 !locked && "hover:text-unfavorable"
@@ -560,6 +634,9 @@ export default function ActualsPage() {
 
           <FormMessage>
             {remove.error ? errorMessage(remove.error) : null}
+          </FormMessage>
+          <FormMessage>
+            {restore.error ? errorMessage(restore.error) : null}
           </FormMessage>
         </Rise>
       </div>

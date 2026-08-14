@@ -11,7 +11,7 @@ import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import { PeriodGrid } from "@/components/client/period-grid";
 import { Button } from "@/components/ui/button";
 import { useLockPeriod, useLocks, useUnlockPeriod } from "@/lib/hooks";
-import { currentMonth } from "@/lib/utils/month";
+import { useCurrentMonth } from "@/lib/stores/preferences";
 
 /**
  * Closing the books, month by month.
@@ -22,7 +22,7 @@ import { currentMonth } from "@/lib/utils/month";
  * to reach any period, past or future.
  */
 export default function PeriodsPage() {
-  const anchor = currentMonth();
+  const anchor = useCurrentMonth();
   const thisYear = Number(anchor.slice(0, 4));
 
   const [year, setYear] = useState(thisYear);

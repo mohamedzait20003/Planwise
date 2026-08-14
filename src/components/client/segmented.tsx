@@ -43,6 +43,14 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            // Named explicitly when a count is present. The label and the count
+            // are separate elements with no whitespace between them, so the
+            // computed name would otherwise run together as "Active12".
+            aria-label={
+              option.count === undefined
+                ? undefined
+                : `${option.label} ${option.count}`
+            }
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => {

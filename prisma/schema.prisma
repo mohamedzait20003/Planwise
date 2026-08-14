@@ -148,10 +148,18 @@ model Actual {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
+  /// Soft delete. An entry is a claim about what was spent, and a locked month
+  /// has to be able to prove what it contained — including that a row was
+  /// removed and by whom the removal was permitted. Null means live; every read
+  /// filters on it, so a deleted entry leaves the report and the totals at once.
+  deletedAt     DateTime?
+
   user        User         @relation(fields: [userId], references: [Id], onDelete: Cascade)
   category    Category     @relation(fields: [categoryId, userId], references: [id, userId], onDelete: Restrict)
 
-  @@index([userId, periodMonth, categoryId])
+  /// Leads with deletedAt so the common read — live rows in a month range — is
+  /// still one index scan rather than a scan plus a filter.
+  @@index([userId, deletedAt, periodMonth, categoryId])
   @@map("actuals")
 }
 

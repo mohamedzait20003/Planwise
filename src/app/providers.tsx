@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "next-auth";
 import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { rehydratePreferences } from "@/lib/stores/preferences";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -27,6 +28,14 @@ export function Providers({
   session?: Session | null;
 }>) {
   const [queryClient] = useState(makeQueryClient);
+
+  // Reading stored preferences is exactly what an effect is for: synchronising
+  // React with an external system, once, on the client. Done here rather than
+  // per screen so every page sees the same value without each remembering to
+  // ask for it.
+  useEffect(() => {
+    rehydratePreferences();
+  }, []);
 
   return (
     <ThemeProvider

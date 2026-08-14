@@ -123,6 +123,12 @@ Import is folded away by default. It is the month-end path, not the daily one,
 and a file picker sitting open above the ledger implies the CSV is the expected
 way in.
 
+**Deleting an entry hides it rather than erasing it.** An undo stays on screen
+for a few seconds, and the row is kept on the record — a closed month has to be
+able to account for what it contained, which a hard delete takes with it.
+Restoring is refused in a locked month on exactly the same terms as deleting,
+because putting an entry back changes that month's total just as surely.
+
 The form keeps the chosen category after a submit — logging three entries against
 the same category is the common shape, and re-picking it each time is the
 friction that makes people batch into a spreadsheet instead.

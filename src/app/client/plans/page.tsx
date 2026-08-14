@@ -28,7 +28,8 @@ import {
   usePlans,
   useUpsertPlan,
 } from "@/lib/hooks";
-import { addMonths, currentMonth, monthLong, monthShort } from "@/lib/utils/month";
+import { addMonths, monthLong, monthShort } from "@/lib/utils/month";
+import { useCurrentMonth } from "@/lib/stores/preferences";
 import { formatCurrency } from "@/lib/utils/variance";
 import type { Category, Plan } from "@/lib/api/types";
 import { cn } from "@/lib/utils/utils";
@@ -203,7 +204,11 @@ function TargetRow({
 }
 
 export default function PlansPage() {
-  const [month, setMonth] = useState(currentMonth);
+  // Derived, not seeded: state captured before the stored preference arrives
+  // would keep the device's month even after the zone loads.
+  const thisMonth = useCurrentMonth();
+  const [chosenMonth, setMonth] = useState<string | null>(null);
+  const month = chosenMonth ?? thisMonth;
   const previousMonth = addMonths(month, -1);
 
   const categories = useCategories();
