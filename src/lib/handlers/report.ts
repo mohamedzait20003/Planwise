@@ -1,5 +1,10 @@
 import { baseApi } from "@/lib/api/baseApi";
-import type { ApiEnvelope, ReportQuery, ReportResponse } from "@/lib/api/types";
+import type {
+  ApiEnvelope,
+  ReportQuery,
+  ReportResponse,
+  ReportRunSummary,
+} from "@/lib/api/types";
 
 /**
  * The plan-vs-actual report.
@@ -62,6 +67,23 @@ export async function generateReport(
   );
 
   return outcomeOf(res.data);
+}
+
+/**
+ * The ranges already run, newest request first.
+ *
+ * Summaries, not reports. Selecting one moves the screen's range and filter to
+ * match, and `getReport` then serves that run from cache or the server.
+ */
+export async function getReportHistory(
+  limit?: number
+): Promise<ReportRunSummary[]> {
+  const res = await baseApi.get<ApiEnvelope<ReportRunSummary[]>>(
+    "/client/report/runs",
+    { params: limit ? { limit } : undefined }
+  );
+
+  return res.data.data ?? [];
 }
 
 /**

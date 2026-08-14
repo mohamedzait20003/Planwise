@@ -3,6 +3,7 @@ import "server-only";
 import { Service, Transactional } from "../decorators/service";
 import { provide } from "../decorators/provider";
 import { NotFoundError } from "../decorators/global";
+import { toReportRunSummary } from "../helpers/wire";
 import { PlanRepositoryProvider, PlanRepository } from "../repositories/planRepository";
 import {
   ActualRepositoryProvider,
@@ -100,6 +101,22 @@ export class ReportService {
     query: { from: string; to: string; categoryId?: string }
   ) {
     return this.reports.findRun(userId, query.from, query.to, query.categoryId);
+  }
+
+  /**
+   * The ranges this user has run, newest request first.
+   *
+   * The data version is read once and compared in memory rather than calling
+   * `isCurrent` per row — that would be one query per entry to answer the same
+   * question with the same number.
+   */
+  async history(userId: string, limit = 20) {
+    const [runs, dataVersion] = await Promise.all([
+      this.reports.listRuns(userId, limit),
+      this.reports.currentDataVersion(userId),
+    ]);
+
+    return runs.map((run) => toReportRunSummary(run, dataVersion));
   }
 
   /** Resets the run for this query to PENDING and hands back its id to queue. */

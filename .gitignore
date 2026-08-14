@@ -56,3 +56,6 @@ next-env.d.ts
 # .mcp.json can carry server credentials; .claude/ holds machine-local settings
 .claude/
 .mcp.json
+
+.vercel
+.env*

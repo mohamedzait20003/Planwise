@@ -39,6 +39,9 @@ export const reportKeys = {
   all: ["report"] as const,
   query: (params: ReportQuery) =>
     [...reportKeys.all, params.from, params.to, params.categoryId ?? "all"] as const,
+  // Under `all`, so generating a report invalidates the history that lists it
+  // without the mutation having to name a second key.
+  history: () => [...reportKeys.all, "history"] as const,
 };
 
 export const derivedKeys = [reportKeys.all];

@@ -17,6 +17,7 @@ import { StatTile, CountUpValue } from "@/components/client/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
 import { VarianceHero } from "@/components/client/variance-hero";
 import { ReportControls } from "@/components/client/report-controls";
+import { ReportHistory } from "@/components/client/report-history";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
 import {
@@ -46,6 +47,7 @@ import {
   useCategories,
   useGenerateReport,
   useReport,
+  useReportHistory,
   downloadReportCsv,
 } from "@/lib/hooks";
 import { currentMonth, monthShort, quarterOf } from "@/lib/utils/month";
@@ -142,6 +144,7 @@ export default function ReportPage() {
   const [exporting, setExporting] = useState(false);
 
   const categories = useCategories();
+  const history = useReportHistory();
 
   // "" means every category. It is also how the server keys the stored run, so
   // filtered and unfiltered reports are separate runs rather than one
@@ -243,6 +246,26 @@ export default function ReportPage() {
           categories={categories.data ?? []}
           anchor={anchor}
         />
+      </Rise>
+
+      <Rise>
+        <Panel
+          title="Previously generated"
+          description="Pick a range to load the report already stored for it."
+        >
+          <ReportHistory
+            runs={history.data ?? []}
+            categories={categories.data ?? []}
+            activeFrom={range.from}
+            activeTo={range.to}
+            activeCategoryId={categoryId}
+            loading={history.isPending && !history.isError}
+            onSelect={(run) => {
+              setRange({ from: run.from, to: run.to });
+              setCategoryId(run.categoryId ?? "");
+            }}
+          />
+        </Panel>
       </Rise>
 
       {report.isError && (

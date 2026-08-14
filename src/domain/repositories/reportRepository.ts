@@ -41,6 +41,38 @@ export class ReportRepository {
     });
   }
 
+  /**
+   * Every range this user has asked for, most recently requested first.
+   *
+   * Deliberately without `rows` or `months`: this answers "what have I run",
+   * and including the rows would pull a full report per entry to render a list
+   * that shows none of them.
+   *
+   * Ordered by `requestedAt` rather than `computedAt` — the latter is null
+   * until a run finishes, so ordering on it would either hide a pending run or
+   * sort it to an arbitrary end.
+   */
+  async listRuns(userId: string, limit: number) {
+    return db().reportRun.findMany({
+      where: { userId },
+      orderBy: { requestedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        fromMonth: true,
+        toMonth: true,
+        categoryId: true,
+        status: true,
+        totalPlan: true,
+        totalActual: true,
+        totalVariance: true,
+        dataVersion: true,
+        requestedAt: true,
+        computedAt: true,
+      },
+    });
+  }
+
   async findRunById(userId: string, runId: string) {
     return db().reportRun.findFirst({
       where: { id: runId, userId },

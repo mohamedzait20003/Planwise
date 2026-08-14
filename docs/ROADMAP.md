@@ -20,23 +20,23 @@ It is first because it unblocks everything below it: the first real query agains
 Postgres, a way to actually look at the screens, and the fixture the
 database-backed tests need. Roughly two hours.
 
-### 2 · Deploy
+### 2 · ~~Deploy~~ — done, with one thread left
 
-The outstanding deliverable — the brief requires a live URL.
+Live at **https://planwise-rouge.vercel.app**, shipped from the CLI. Migrations
+applied, categories and actuals imported, reports generated against the real
+database.
 
-```bash
-vercel link
-# add DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL in the dashboard
-# add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID as GitHub secrets
-```
+Vercel's Git integration is disconnected — `git.deploymentEnabled: false` in
+`vercel.json` — so `deploy.yml` is the only path to production and migrations
+always precede the code.
 
-Two things to decide at the same time: whether `main` or `feat/landing-redesign`
-is the production branch (`deploy.yml` assumes `main`, `origin/HEAD` currently
-says otherwise), and whether to disconnect Vercel's own Git integration — left
-on, it races the workflow with migrations landing in between.
+**Still open: which branch is production.** `deploy.yml` triggers on `main`;
+the work is on `feat/landing-redesign`. Until that merges, nothing deploys
+automatically and every release is a manual `vercel --prod`. Either merge, or
+change the trigger — but not both.
 
-`experimentalTriggers` in `vercel.json` is the piece most likely to need
-adjusting when the queue is provisioned for real.
+`experimentalTriggers` in `vercel.json` is still pinned to `queue/v2beta` and
+remains the piece most likely to need adjusting.
 
 ### 3 · Database-backed tests
 

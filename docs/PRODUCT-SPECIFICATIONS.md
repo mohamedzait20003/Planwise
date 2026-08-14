@@ -167,6 +167,27 @@ The detail table carries a **month subtotal** in each group header and an inline
 variance meter per row, scaled against the largest variance in the table so the
 marks are comparable down the column.
 
+**Previously generated** draws the ranges already run as bars on one shared
+timeline, each positioned and sized by the months it covers. A run is a claim
+about a span of time, and a column of text labels throws that away — "Jan – Mar"
+and "Feb – Aug" read as two strings when they are really two overlapping
+intervals. On a common axis the overlap, the gaps and the relative reach are
+visible without reading a date, and a "now" line marks today when it falls
+inside the span.
+
+Each bar carries its state in its own treatment — faded and dash-outlined when
+out of date, pulsing while running, outlined when failed — with the word beside
+it, since a texture is a reinforcement and not a label. Net variance is always
+shown as text. Selecting a bar moves the range and category filter to match, and
+the stored run loads from there.
+
+It is **one entry per range, not per generation.** A run is keyed by its query,
+so regenerating Q1 updates the Q1 entry rather than stacking a second one beside
+it. The list answers "what have I looked at", not "how many times did I press
+the button" — the model has no room for the second question, since a second run
+of the same range would collide on
+`@@unique([userId, fromMonth, toMonth, categoryId])`.
+
 Generation is queued, so the first request usually answers "generating" and the
 numbers arrive on a poll. A stale report is never served — a variance figure one
 write behind is a wrong number wearing the authority of a right one.

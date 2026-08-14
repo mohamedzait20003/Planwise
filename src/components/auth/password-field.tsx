@@ -62,7 +62,6 @@ export function PasswordField({
   );
 }
 
-/** Bands the strength meter reports. Index doubles as the number lit. */
 const BANDS = [
   { label: "Too short", tone: "bg-unfavorable" },
   { label: "Weak", tone: "bg-unfavorable" },

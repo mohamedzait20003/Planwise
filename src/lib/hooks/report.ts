@@ -2,7 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { exportReportCsv, generateReport, getReport } from "@/lib/handlers/report";
+import {
+  exportReportCsv,
+  generateReport,
+  getReport,
+  getReportHistory,
+} from "@/lib/handlers/report";
 import type { ReportOutcome } from "@/lib/handlers/report";
 import { reportKeys } from "@/lib/api/keys";
 import type { ApiError } from "@/lib/api";
@@ -88,7 +93,26 @@ export function useGenerateReport() {
     mutationFn: generateReport,
     onSuccess: (outcome, params) => {
       queryClient.setQueryData(reportKeys.query(params), outcome);
+      // A new run belongs in the history, and a regenerated one changes the
+      // entry already there — either way the cached list is now wrong.
+      queryClient.invalidateQueries({ queryKey: reportKeys.history() });
     },
+  });
+}
+
+/**
+ * The ranges already run.
+ *
+ * Short `staleTime`: every write bumps the data version, which flips entries to
+ * stale, and the list is the one place a reader would notice. Not polled — a
+ * pending entry settles on the report query's own poll, and that invalidates
+ * this list when it lands.
+ */
+export function useReportHistory(limit?: number) {
+  return useQuery({
+    queryKey: reportKeys.history(),
+    queryFn: () => getReportHistory(limit),
+    staleTime: 10_000,
   });
 }
 

@@ -153,3 +153,25 @@ export type ReportQuery = {
   to: string;
   categoryId?: string;
 };
+
+/**
+ * One previously requested report, as a history entry.
+ *
+ * A run is keyed by its query — `[user, from, to, category]` — so this is one
+ * entry per distinct range, showing its current state. Regenerating the same
+ * range updates that entry rather than adding a second one.
+ */
+export type ReportRunSummary = {
+  id: string;
+  from: string;
+  to: string;
+  /** null means the run covered every category. */
+  categoryId: string | null;
+  status: "pending" | "processing" | "ready" | "failed";
+  /** True when a write has landed since this run was computed. */
+  stale: boolean;
+  totals: ReportTotals;
+  requestedAt: string;
+  /** null until the run finishes. */
+  computedAt: string | null;
+};

@@ -7,6 +7,7 @@ import type {
   PeriodLock,
   Plan,
   ReportResponse,
+  ReportRunSummary,
 } from "@/lib/api/types";
 import type { ReportStatus } from "../../../generated/prisma/client";
 
@@ -143,6 +144,52 @@ export function toReport(run: {
       variance,
       variancePct: plan === 0 ? null : (variance / plan) * 100,
     },
+  };
+}
+
+/**
+ * A stored run as a history entry — what was asked for, not the answer.
+ *
+ * `stale` is resolved here rather than left to the client because staleness is
+ * a comparison against `User.dataVersion`, which is server state the client
+ * has no other reason to know.
+ */
+export function toReportRunSummary(
+  run: {
+    id: string;
+    fromMonth: Date;
+    toMonth: Date;
+    categoryId: string;
+    status: ReportStatus;
+    totalPlan: Row;
+    totalActual: Row;
+    totalVariance: Row;
+    dataVersion: number;
+    requestedAt: Date;
+    computedAt: Date | null;
+  },
+  currentDataVersion: number
+): ReportRunSummary {
+  const plan = toNumber(run.totalPlan);
+  const variance = toNumber(run.totalVariance);
+
+  return {
+    id: run.id,
+    from: dateToMonth(run.fromMonth),
+    to: dateToMonth(run.toMonth),
+    // "" is the stored sentinel for "every category"; null is what the client
+    // means by it, and what its filter state already uses.
+    categoryId: run.categoryId === "" ? null : run.categoryId,
+    status: run.status.toLowerCase() as Lowercase<ReportStatus>,
+    stale: run.dataVersion !== currentDataVersion,
+    totals: {
+      plan,
+      actual: toNumber(run.totalActual),
+      variance,
+      variancePct: plan === 0 ? null : (variance / plan) * 100,
+    },
+    requestedAt: run.requestedAt.toISOString(),
+    computedAt: run.computedAt?.toISOString() ?? null,
   };
 }
 

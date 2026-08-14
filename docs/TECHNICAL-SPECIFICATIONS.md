@@ -101,6 +101,7 @@ message — the raw text can carry SQL, file paths or column names.
 | `GET` `POST` | `/api/client/locks` | list, lock |
 | `DELETE` | `/api/client/locks/[month]` | unlock |
 | `GET` | `/api/client/report` | `?from=&to=&categoryId=` — 200 or 202 |
+| `GET` | `/api/client/report/runs` | `?limit=` — stored runs as summaries, newest first |
 | `GET` | `/api/client/report/export` | CSV, computed on demand |
 | `POST` | `/api/queues/report` | queue consumer |
 
@@ -198,3 +199,13 @@ are not in the same folder.
 Built in CI rather than on Vercel so the artifact that ships is the one that
 passed. Migrations run before the code — correct for additive changes, wrong for
 destructive ones, which need expand-then-contract across two deploys.
+
+**`git.deploymentEnabled` is `false` in `vercel.json`**, which is what makes that
+true. Linking the project connects the GitHub repository, and Vercel's own Git
+integration would then deploy on every push — a second production deployment per
+push, built from source rather than from the verified artifact, and without
+`prisma migrate deploy` having run first. Turning it off leaves `deploy.yml` as
+the only path to production.
+
+The consequence is that **nothing deploys without the workflow**. A green build
+on a branch produces no preview URL; use `vercel` from the CLI for one.

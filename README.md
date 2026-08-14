@@ -3,7 +3,7 @@
 Set a monthly spending target per category, log what you actually spent, and see
 the variance the moment it happens. Close a month and the numbers stop moving.
 
-**Live URL:** _not yet deployed — see [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)_
+**Live URL:** **https://planwise-rouge.vercel.app**
 
 ---
 
@@ -69,6 +69,29 @@ npm run dev            # the SDK discovers the handler from vercel.json
 In development the SDK sends to the real queue service and then invokes the
 handler in-process, so `npm run dev` exercises the same path as production. It
 needs a linked project and network. Working offline, set `REPORTS_INLINE="1"`.
+
+## Deploying
+
+Production ships from [`deploy.yml`](.github/workflows/deploy.yml) on push to
+`main`: verify, apply migrations, then `vercel build` and
+`vercel deploy --prebuilt`. Building in CI rather than on Vercel means the
+artifact that ships is the one that passed.
+
+Vercel's own Git integration is **off** — `"git": { "deploymentEnabled": false }`
+in [`vercel.json`](vercel.json). Left on it would deploy on every push in
+parallel with the workflow, from source rather than the verified artifact, and
+without migrations having run first. The cost is that branch pushes no longer
+produce preview URLs; get one on demand with `vercel`.
+
+```bash
+vercel login && vercel link       # writes .vercel/project.json
+vercel env add DATABASE_URL       # and NEXTAUTH_SECRET, NEXTAUTH_URL
+npm run migrate:deploy            # schema before code, always
+vercel --prod
+```
+
+`.vercel/project.json` holds the `orgId` and `projectId` that
+`VERCEL_ORG_ID` / `VERCEL_PROJECT_ID` need as GitHub secrets.
 
 ---
 

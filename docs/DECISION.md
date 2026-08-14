@@ -339,3 +339,30 @@ are announced as the selection moves either way.
 **Also.** The plot itself is `aria-hidden`; the numbers reach assistive tech
 through a screen-reader data table of the plotted months, which is the honest
 non-visual equivalent of a chart rather than a label describing one.
+
+---
+
+## 20 · Report history is one entry per range, not per generation
+
+**Decision.** `GET /api/client/report/runs` returns the stored runs as
+summaries. Regenerating a range updates its entry rather than adding a second.
+
+**Why.** It is not a design choice so much as a consequence of one already made.
+`ReportRun` is unique on `[userId, fromMonth, toMonth, categoryId]` — decision 9,
+the constraint that makes the GET idempotent and the client's 2-second poll safe.
+There is nowhere in the model for a second run of the same range to live.
+
+**Cost.** No audit trail. "Q1 was generated four times, here is each" is
+unanswerable, and would need a separate append-only table. Nothing asks for it
+today, and adding one would mean either dropping the uniqueness that makes
+polling cheap or maintaining two records of the same event.
+
+**Consequence for the UI.** The list answers "what have I looked at", so it is
+drawn as coverage — bars on a shared timeline, positioned and sized by the
+months each run spans. Overlap and gaps are the information a set of intervals
+actually carries, and a column of date strings discards it.
+
+**Selecting an entry sets the range and filter; it does not fetch.** The report
+query is already keyed on exactly those parameters, so the run arrives through
+the path that was always there — no second way to load a report, and re-picking
+the range you are on is a no-op rather than a refetch.
