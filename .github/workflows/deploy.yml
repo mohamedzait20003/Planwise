@@ -100,7 +100,26 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Pull Vercel environment
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+          # A variable stored with Vercel's "Sensitive" type cannot be read back:
+          # `pull` writes the literal string [SENSITIVE] where the value should
+          # be. Unset is safe, a placeholder is not — code that parses its
+          # variable at import time gets something that looks real and isn't.
+          # NEXTAUTH_URL is the one that bites: next-auth prefixes anything not
+          # starting with http:// and calls new URL(), so [SENSITIVE] becomes
+          # https://[SENSITIVE] and throws while prerendering. Vercel injects the
+          # real values into the running function, so dropping them from the
+          # build environment costs nothing at runtime.
+          env_file=.vercel/.env.production.local
+          [ -f "$env_file" ] || exit 0
+
+          unreadable=$(sed -n 's/="\[SENSITIVE\]"$//p' "$env_file" | paste -sd' ')
+          if [ -n "$unreadable" ]; then
+            echo "::warning::Sensitive and unreadable at build time, dropped: $unreadable"
+            sed -i '/="\[SENSITIVE\]"$/d' "$env_file"
+          fi
 
       - name: Build
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
