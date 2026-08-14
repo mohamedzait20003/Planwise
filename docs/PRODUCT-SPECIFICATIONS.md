@@ -188,6 +188,18 @@ the button" — the model has no room for the second question, since a second ru
 of the same range would collide on
 `@@unique([userId, fromMonth, toMonth, categoryId])`.
 
+**Clicking a category opens the entries behind that cell** — every actual
+logged against it that month, with note and date. The panel reads the live
+ledger rather than the stored run, so when the two disagree it says so instead
+of reconciling them: the report is a snapshot, and the difference means it
+predates a write.
+
+**The range presets follow a fiscal year.** A start-month selector sits with the
+range summary; an April start makes Q1 run April to June and labels the year
+`FY2026`, meaning the fiscal year that *opens* in 2026. The span is always shown
+beside the label, because the opposite convention is equally common. January is
+the default, and with it the fiscal ranges are the calendar ranges.
+
 Generation is queued, so the first request usually answers "generating" and the
 numbers arrive on a poll. A stale report is never served — a variance figure one
 write behind is a wrong number wearing the authority of a right one.

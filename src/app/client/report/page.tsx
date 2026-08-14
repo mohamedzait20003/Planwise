@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   DownloadIcon,
@@ -18,6 +18,8 @@ import { VarianceChart } from "@/components/client/variance-chart";
 import { VarianceHero } from "@/components/client/variance-hero";
 import { ReportControls } from "@/components/client/report-controls";
 import { ReportHistory } from "@/components/client/report-history";
+import { DrillDown } from "@/components/client/drill-down";
+import { rehydratePreferences, usePreferences } from "@/lib/stores/preferences";
 import { LockPill } from "@/components/client/lock-pill";
 import { Rise, Stagger, rowMotion } from "@/components/client/motion";
 import {
@@ -50,7 +52,7 @@ import {
   useReportHistory,
   downloadReportCsv,
 } from "@/lib/hooks";
-import { currentMonth, monthShort, quarterOf } from "@/lib/utils/month";
+import { currentMonth, fiscalQuarterOf, monthShort } from "@/lib/utils/month";
 import type { MonthRange } from "@/lib/utils/month";
 import { formatCurrency, formatSignedCurrency } from "@/lib/utils/variance";
 import type { ReportRow } from "@/lib/api/types";
@@ -139,9 +141,29 @@ function byMonth(rows: ReportRow[]): Array<[month: string, rows: ReportRow[]]> {
 
 export default function ReportPage() {
   const anchor = currentMonth();
-  const [range, setRange] = useState<MonthRange>(() => quarterOf(anchor));
+  const fiscalYearStart = usePreferences((state) => state.fiscalYearStart);
+
+  /**
+   * Null until the reader picks a range, and the current fiscal quarter until
+   * then — derived, not copied into state. That is what lets the stored fiscal
+   * start arrive late: when it rehydrates, the default range recomputes on the
+   * next render instead of needing an effect to write it back, and a range the
+   * reader has already chosen is untouched because it is no longer null.
+   */
+  const [chosenRange, setChosenRange] = useState<MonthRange | null>(null);
+  const range = chosenRange ?? fiscalQuarterOf(anchor, fiscalYearStart);
+
   const [categoryId, setCategoryId] = useState("");
   const [exporting, setExporting] = useState(false);
+
+  /** The report cell whose underlying entries are open, if any. */
+  const [drillRow, setDrillRow] = useState<ReportRow | null>(null);
+
+  // Reading a stored preference is exactly what an effect is for: synchronising
+  // React with an external system, once, on the client.
+  useEffect(() => {
+    rehydratePreferences();
+  }, []);
 
   const categories = useCategories();
   const history = useReportHistory();
@@ -240,7 +262,7 @@ export default function ReportPage() {
       <Rise>
         <ReportControls
           range={range}
-          onRangeChange={setRange}
+          onRangeChange={setChosenRange}
           categoryId={categoryId}
           onCategoryChange={setCategoryId}
           categories={categories.data ?? []}
@@ -261,7 +283,7 @@ export default function ReportPage() {
             activeCategoryId={categoryId}
             loading={history.isPending && !history.isError}
             onSelect={(run) => {
-              setRange({ from: run.from, to: run.to });
+              setChosenRange({ from: run.from, to: run.to });
               setCategoryId(run.categoryId ?? "");
             }}
           />
@@ -474,10 +496,25 @@ export default function ReportPage() {
                               <motion.tr
                                 key={`${month}-${row.categoryId}`}
                                 {...rowMotion}
-                                className="border-b transition-colors hover:bg-muted/40"
+                                onClick={() => setDrillRow(row)}
+                                className="cursor-pointer border-b transition-colors hover:bg-muted/40"
                               >
                                 <TableCell className="font-medium">
-                                  {row.categoryName}
+                                  {/* The button carries the semantics and the
+                                      keyboard path; the row click is a
+                                      convenience on top of it, so the cell is
+                                      never the only way in. */}
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setDrillRow(row);
+                                    }}
+                                    aria-label={`Show the entries behind ${row.categoryName} in ${monthShort(month)}`}
+                                    className="rounded-md text-left underline-offset-4 hover:underline focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
+                                  >
+                                    {row.categoryName}
+                                  </button>
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <Money value={row.plan} />
@@ -518,6 +555,8 @@ export default function ReportPage() {
           </Rise>
         </>
       )}
+
+      <DrillDown row={drillRow} onClose={() => setDrillRow(null)} />
     </Stagger>
   );
 }

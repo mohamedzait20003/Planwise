@@ -49,7 +49,7 @@ npm run dev            # dev server
 npm run build          # prisma generate && next build
 npm run lint           # eslint
 npm run typecheck      # tsc --noEmit
-npm test               # vitest — 103 unit tests
+npm test               # vitest — 134 unit tests
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 ```
@@ -153,6 +153,33 @@ This is the brief's first option, chosen because the alternative — blanking
 Actual, Variance and Variance % — makes the column totals stop reconciling with
 the rows above them.
 
+### Stretch goals
+
+All three are implemented.
+
+**Drill-down.** Clicking a category in the report opens the actual entries
+behind that cell — amount, note and date per entry. The panel reads the *live*
+ledger rather than the stored run, so if the two disagree it says so: the report
+is a snapshot with its own `computedAt`, and a mismatch means it predates a
+write. Quietly reconciling them would hide exactly the thing worth seeing.
+
+**Fiscal year.** A start-month selector sits beside the range summary. Every
+preset derives from it, so an April start gives Q1 = Apr–Jun and labels the year
+`FY2026`. January is the default and is not a special case in the code — the
+fiscal helpers reduce to the calendar ones, which
+[`fiscal.test.ts`](tests/unit/fiscal.test.ts) asserts directly by comparing them
+against `quarterOf` and `yearOf`.
+
+The naming convention is the ambiguous part: `FY2026` here means the fiscal year
+that *opens* in 2026, where US federal practice names one for the year it
+closes. Nothing in the UI shows `FY2026` without the month span beside it.
+
+The setting is stored in the browser, not on the account. It changes how a range
+is labelled and cut, and no stored figure — so it did not warrant a column and a
+migration. The trade: it does not follow you to another browser.
+
+**Export CSV.** Covered under the report above.
+
 ### Indexing and querying at scale
 
 The dataset here is small. What carries the load as it grows:
@@ -243,7 +270,7 @@ Fuller reasoning for each significant choice is in
 ## Testing
 
 ```bash
-npm test           # 103 unit tests
+npm test           # 134 unit tests
 npm run test:e2e   # 20 end-to-end tests — public pages and the route guard
 ```
 
@@ -254,6 +281,7 @@ The three rules the brief grades are each asserted directly:
 | **Variance calculation** | [`variance.test.ts`](tests/unit/variance.test.ts) | The sign convention, the plan-of-zero null, and formatting — against the brief's own figures |
 | **Aggregation** | [`report-service.test.ts`](tests/unit/report-service.test.ts) | The plan/actual join, both edge cases and the totals, through the real `compute` with repositories stubbed |
 | **Lock enforcement** | [`lock-enforcement.test.ts`](tests/unit/lock-enforcement.test.ts) | Every write path refuses a closed month — including the two a naive check misses |
+| **Fiscal years** | [`fiscal.test.ts`](tests/unit/fiscal.test.ts) | Shifted-origin date maths, both edges: the month before the year opens, and the quarter that crosses the new year |
 
 Lock enforcement gets the most attention because it is the rule most easily
 implemented wrongly in a way that still looks right. Checking the month named in

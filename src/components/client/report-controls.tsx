@@ -2,17 +2,25 @@
 
 import { useId, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarRangeIcon, LayersIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CalendarRangeIcon,
+  LayersIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { usePreferences } from "@/lib/stores/preferences";
 
 import { Segmented } from "@/components/client/segmented";
 import { Label } from "@/components/ui/label";
 import {
   addMonths,
+  CALENDAR_YEAR_START,
+  fiscalQuarterNumber,
+  fiscalQuarterOf,
+  fiscalYearLabel,
+  fiscalYearOf,
   isMonth,
   monthShort,
   monthsBetween,
-  quarterOf,
-  yearOf,
 } from "@/lib/utils/month";
 import type { MonthRange } from "@/lib/utils/month";
 import { categorySolid } from "@/lib/utils/category-color";
@@ -20,6 +28,13 @@ import type { Category } from "@/lib/api/types";
 import { cn } from "@/lib/utils/utils";
 
 type Mode = "quarter" | "last-quarter" | "year" | "custom";
+
+/** Built from Intl so the names follow the locale rather than a hardcoded list. */
+const MONTH_NAMES = Array.from({ length: 12 }, (_, index) =>
+  new Intl.DateTimeFormat("en-US", { month: "long" }).format(
+    new Date(2026, index, 1)
+  )
+);
 
 /**
  * What a report is going to be run over.
@@ -60,14 +75,32 @@ export function ReportControls({
   // open even while the range still happens to match a preset.
   const [pinnedCustom, setPinnedCustom] = useState(false);
 
+  const fiscalYearStart = usePreferences((state) => state.fiscalYearStart);
+  const setFiscalYearStart = usePreferences((state) => state.setFiscalYearStart);
+
+  // Every preset is derived from the fiscal start, so a January start produces
+  // exactly the calendar ranges it did before this setting existed.
   const presets = [
-    { id: "quarter" as const, label: "Quarter", range: quarterOf(anchor) },
+    {
+      id: "quarter" as const,
+      label: `Q${fiscalQuarterNumber(anchor, fiscalYearStart)}`,
+      range: fiscalQuarterOf(anchor, fiscalYearStart),
+    },
     {
       id: "last-quarter" as const,
-      label: "Last quarter",
-      range: quarterOf(addMonths(anchor, -3)),
+      label: "Previous",
+      range: fiscalQuarterOf(
+        // Back one quarter from the start of this one, so the step is three
+        // fiscal months rather than three calendar months from today.
+        addMonths(fiscalQuarterOf(anchor, fiscalYearStart).from, -1),
+        fiscalYearStart
+      ),
     },
-    { id: "year" as const, label: "Year", range: yearOf(anchor) },
+    {
+      id: "year" as const,
+      label: fiscalYearLabel(anchor, fiscalYearStart),
+      range: fiscalYearOf(anchor, fiscalYearStart),
+    },
   ];
 
   const matched = presets.find(
@@ -211,7 +244,7 @@ export function ReportControls({
       </div>
 
       {/* ---- What this will produce -------------------------------------- */}
-      <div className="border-t border-border/60 bg-muted/25 px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-border/60 bg-muted/25 px-5 py-3">
         {inverted ? (
           <p
             role="alert"
@@ -234,6 +267,25 @@ export function ReportControls({
             <span>{selected ? selected.name : "all categories"}</span>
           </p>
         )}
+
+        {/* The setting sits with the summary it changes rather than in a
+            settings screen: it only affects how these presets are cut, and the
+            span above is the immediate proof of what it did. */}
+        <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          Fiscal year starts
+          <select
+            value={fiscalYearStart}
+            onChange={(event) => setFiscalYearStart(Number(event.target.value))}
+            className="h-8 rounded-lg border border-input bg-background px-2 text-xs transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none dark:bg-input/30"
+          >
+            {MONTH_NAMES.map((name, index) => (
+              <option key={name} value={index + 1}>
+                {name}
+                {index + 1 === CALENDAR_YEAR_START ? " (calendar)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
     </section>
   );

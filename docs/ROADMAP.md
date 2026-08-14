@@ -90,10 +90,11 @@ process before the first column is dropped.
 
 ## Later — product
 
+Drill-down and fiscal years have both shipped; what is left here is genuinely
+not started.
+
 | | Note |
 |---|---|
-| **Drill-down** | Click a report cell to see the entries behind it. The data supports it; only UI is missing. It is also the natural answer to "why is this number wrong?" |
-| **Fiscal year** | A start-month setting, then the quarter presets derive from it. |
 | **Lock a quarter** | Three locks behind one button. The model already allows it. |
 | **Recurring plans** | Copy a month's targets forward, or set a default that months inherit. |
 | **Multi-currency** | A currency column and a rate table. Everything assumes one currency today. |

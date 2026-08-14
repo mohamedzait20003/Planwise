@@ -108,3 +108,70 @@ export function yearOf(month: string): MonthRange {
 export function lastMonths(month: string, n: number): MonthRange {
   return { from: addMonths(month, -(n - 1)), to: month };
 }
+
+/* fiscal years */
+
+/**
+ * The month a fiscal year opens on, 1–12.
+ *
+ * `1` is January, which makes the fiscal year the calendar year — so the
+ * calendar behaviour is not a special case in any of the functions below, it is
+ * what they already do when nobody has changed the setting.
+ */
+export const CALENDAR_YEAR_START = 1;
+
+/**
+ * Which fiscal year a month falls in, named for the calendar year the fiscal
+ * year *opens* in.
+ *
+ * April start: 2026-04 through 2027-03 are all FY2026. That convention is not
+ * universal — US federal practice names a fiscal year for the year it closes —
+ * so nothing in the UI shows "FY2026" without the span beside it.
+ */
+export function fiscalYearNumber(month: string, start: number): number {
+  const [year, monthIndex] = parts(month);
+  return monthIndex >= start - 1 ? year : year - 1;
+}
+
+/** The twelve months of the fiscal year containing `month`. */
+export function fiscalYearOf(month: string, start: number): MonthRange {
+  const from = `${fiscalYearNumber(month, start)}-${String(start).padStart(2, "0")}`;
+  return { from, to: addMonths(from, 11) };
+}
+
+/**
+ * The fiscal quarter containing `month`, counting from the fiscal year's own
+ * opening month rather than from January.
+ */
+export function fiscalQuarterOf(month: string, start: number): MonthRange {
+  const { from: yearStart } = fiscalYearOf(month, start);
+
+  // How far into the fiscal year this month sits, 0–11.
+  const [year, monthIndex] = parts(month);
+  const [fyYear, fyMonthIndex] = parts(yearStart);
+  const offset = (year - fyYear) * 12 + (monthIndex - fyMonthIndex);
+
+  const quarterStart = addMonths(yearStart, Math.floor(offset / 3) * 3);
+  return { from: quarterStart, to: addMonths(quarterStart, 2) };
+}
+
+/** 1–4 — which quarter of its fiscal year `month` falls in. */
+export function fiscalQuarterNumber(month: string, start: number): number {
+  const { from } = fiscalYearOf(month, start);
+  const [year, monthIndex] = parts(month);
+  const [fyYear, fyMonthIndex] = parts(from);
+
+  return Math.floor(((year - fyYear) * 12 + (monthIndex - fyMonthIndex)) / 3) + 1;
+}
+
+/**
+ * "2026" on a calendar year, "FY2026" otherwise.
+ *
+ * The prefix only appears when it carries information: with a January start
+ * the fiscal year *is* the calendar year, and labelling it "FY" would imply a
+ * distinction that is not there.
+ */
+export function fiscalYearLabel(month: string, start: number): string {
+  const year = fiscalYearNumber(month, start);
+  return start === CALENDAR_YEAR_START ? `${year}` : `FY${year}`;
+}
