@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { Segmented } from "@/components/client/segmented";
+import { Segmented } from "@/components/common/segmented";
 
 /**
  * The segmented control's keyboard contract.

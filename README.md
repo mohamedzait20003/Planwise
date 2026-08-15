@@ -31,10 +31,12 @@ npm run dev                 # http://localhost:3000
 ```
 
 **The seed is the fastest way to see the app working.** It creates a verified
-demo account holding the assignment's own figures:
+demo account holding the assignment's own figures, and an operator account for
+the admin console:
 
 ```
-demo@planwise.app / planwise-demo
+demo@planwise.app  / planwise-demo     workspace
+admin@planwise.app / planwise-admin    admin console
 ```
 
 Two categories, four plans, three actuals — with **Marketing February
@@ -42,6 +44,11 @@ deliberately omitted**, because that is the case the missing-actual rule exists
 for. `2026-01` is locked, so the read-only path and the API's refusal are
 visible without setting anything up. Generate a report over `2026-01 … 2026-02`
 and the four rows match the brief's table exactly.
+
+The admin account deliberately owns nothing. Signing in as it shows the console
+over the demo account's footprint, which is the thing worth looking at — and an
+operator account with its own spend would blur the line the console is built
+around.
 
 It is idempotent: everything is keyed on something stable, so running it twice
 changes nothing.
@@ -66,7 +73,7 @@ npm run dev            # dev server
 npm run build          # prisma generate && next build
 npm run lint           # eslint
 npm run typecheck      # tsc --noEmit
-npm test               # vitest — 199 tests (unit + component)
+npm test               # vitest — 206 tests (unit + component)
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 npm run seed           # load the brief's sample data
@@ -171,6 +178,42 @@ This is the brief's first option, chosen because the alternative — blanking
 Actual, Variance and Variance % — makes the column totals stop reconciling with
 the rows above them.
 
+### What an admin can and cannot see
+
+Not part of the brief. The `ADMIN` role and the `proxy.ts` guard already
+existed and pointed at pages that did not, and a role granting access to nothing
+is a claim the app makes and cannot honour. `/admin/dashboard` and
+`/admin/users` are what it now grants.
+
+**The console sees counts, never amounts.** No endpoint under `/api/admin/*`
+returns another user's categories, targets, entries or report figures. An
+operator can see that an account holds 412 entries and when the last one landed;
+they cannot see what any of them were for or what they cost.
+
+That is deliberate, and it is where requirement 1.3 — *a user sees and modifies
+only their own data* — would otherwise have quietly stopped being true. Every
+other part of the app honours it structurally, because `userId` is the first
+argument of every repository method and lands in the `WHERE` clause. An admin
+screen is the one place that guarantee has to be upheld by choice, since the
+whole point of the screen is to look at other people's accounts. So the
+narrowing happens in one auditable place, `toAdminUser`, which lists its fields
+by hand — a column added to `User` lands on the model and stops there.
+
+**Two rules stop the console locking everyone out**, and they refuse at
+different moments:
+
+| Rule | When | Why there |
+|---|---|---|
+| You cannot change your own role | before the write | demoting yourself removes the screen that would undo it |
+| A change must leave an admin standing | **after** the write, rolling back | checked before, it could never fire — an admin acting on a *different* admin always starts from two |
+
+The second is the one worth reading twice. Written the usual way — count the
+admins, refuse at one — it looks like a guard and protects nothing, because
+`Auth("ADMIN")` guarantees the actor still holds the role afterwards. Counting
+after the write states the invariant that is actually true. Both are asserted in
+[`admin-service.test.ts`](tests/unit/admin-service.test.ts), and the reasoning
+is in [docs/DECISION.md](docs/DECISION.md).
+
 ### Stretch goals
 
 All three are implemented.
@@ -251,6 +294,8 @@ Fuller reasoning, including the schema itself, is in
 | One currency, USD, no conversion | Amounts are `Decimal(14,2)`; a multi-currency workspace needs a currency column and a rate table |
 | Categories are archived, never deleted | Plans and actuals reference them `onDelete: Restrict`, so deleting would take history with it |
 | A user's data is scoped by `userId` in every query | There is no row-level security behind it; a repository that forgets the scope is the failure mode |
+| Admins operate the platform, they do not read it | The console shows counts, states and timestamps — never an amount. Support questions of the form "why does this user's report look wrong?" have to be answered by asking the user |
+| Role changes are applied, not recorded | There is no audit trail: who demoted whom is only in the current state of the row |
 | Reports are recomputed on any write | `User.dataVersion` invalidates coarsely — every stored report, not the affected ranges |
 | Sessions are stateless JWTs | No revocation: a password reset does not sign out an existing session |
 
@@ -269,8 +314,19 @@ Fuller reasoning for each significant choice is in
 4. **Rate limiting** on sign-in, sign-up and password reset.
 5. **Structured logging and error tracking.** `console.error` in the endpoint
    wrapper is the whole of the observability story.
-6. **Index review at scale** — see
+6. **An audit trail for admin actions.** Role and verification changes are
+   applied and not recorded, so who demoted whom is only in the current state of
+   the row.
+7. **Index review at scale** — see
    [docs/DATA-MODEL.md](docs/DATA-MODEL.md#performance-at-scale).
+
+**One known bug, pre-dating this work:** `npm run seed` fails with
+`ERR_MODULE_NOT_FOUND`. `node scripts/seed.ts` cannot resolve the generated
+Prisma client, whose internal imports are extensionless — fine under a bundler,
+not under raw Node ESM. The fix is `importFileExtension` on the `prisma-client`
+generator, which changes the generated output for the whole app and wants
+verifying on its own rather than as a side effect. The seed's *contents* are
+current, including the admin account above.
 
 ---
 
@@ -290,7 +346,7 @@ Fuller reasoning for each significant choice is in
 ## Testing
 
 ```bash
-npm test           # 199 tests
+npm test           # 206 tests
 npm run test:e2e   # 20 end-to-end tests — public pages and the route guard
 ```
 
@@ -303,6 +359,7 @@ The three rules the brief grades are each asserted directly:
 | **Lock enforcement** | [`lock-enforcement.test.ts`](tests/unit/lock-enforcement.test.ts) | Every write path refuses a closed month — including the two a naive check misses |
 | **Fiscal years** | [`fiscal.test.ts`](tests/unit/fiscal.test.ts) | Shifted-origin date maths, both edges: the month before the year opens, and the quarter that crosses the new year |
 | **Timezones** | [`timezone.test.ts`](tests/unit/timezone.test.ts) | A zone changes which month "now" is, and changes nothing about a stored month |
+| **Admin guards** | [`admin-service.test.ts`](tests/unit/admin-service.test.ts) | Neither rule can be used to leave the console unreachable — self-demotion refuses before writing, the last-admin rule rolls back after |
 | **Components** | [`tests/component/`](tests/component/) | Editing and keyboard contracts in jsdom — the layer that caught Escape saving the edit it should discard |
 
 Lock enforcement gets the most attention because it is the rule most easily

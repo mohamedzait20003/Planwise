@@ -476,3 +476,89 @@ reachable from the domain suite, and neither is what an end-to-end test is for.
 **Cost.** Four dev dependencies and a second Vitest project. The projects are
 split so the domain suite keeps running in Node — a DOM there would be slower
 and would let a domain test quietly depend on a browser global.
+
+---
+
+## 25 · The admin console sees counts, never amounts
+
+**Decision.** No `/api/admin/*` endpoint returns another user's categories,
+targets, entries or report figures. What an operator gets about an account is a
+footprint — how many of each thing exists, and when the last entry landed.
+
+**Why.** Requirement 1.3 is that a user sees and modifies only their own data.
+Every other part of the app honours it structurally: `userId` is the first
+argument of every repository method and lands in the `WHERE` clause. An admin
+console is the one screen where that guarantee has to be upheld by choice
+instead, because the whole point of the screen is to look at other people's
+accounts.
+
+So the boundary is drawn where it can be audited. `toAdminUser` in
+`domain/helpers/wire.ts` lists its fields out by hand rather than spreading a
+model, which means a column added to `User` next month lands on the model and
+stops there — rather than arriving on an operator's screen because nobody
+remembered to exclude it. `UserFootprint` is counts only, and there is no
+endpoint that would return an amount even if the UI asked for one.
+
+**What this costs.** Support questions of the form "why does this user's report
+look wrong?" cannot be answered from the console. That is the intended trade:
+the answer to that question is to ask the user, and a console that could answer
+it is a console that can read everyone's finances.
+
+**What it is not.** Not encryption, and not a claim that an operator cannot get
+at the data — anyone with database access has it. It removes the *casual* path,
+which is the one that gets used.
+
+---
+
+## 26 · `AdminRepository` is the one repository not scoped by `userId`
+
+**Decision.** Platform-wide aggregates live in their own repository rather than
+as `countAll()` methods on `CategoryRepository`, `PlanRepository` and the rest.
+
+**Why.** Every other repository method takes `userId` as its first argument, and
+that uniformity is load-bearing: it is what makes ownership a property of the
+query rather than of the caller remembering to filter. Adding an unscoped
+`countAll()` beside `list(userId)` would put a method that ignores ownership one
+autocomplete away from every method that enforces it, on a class whose whole
+contract is that it enforces it.
+
+Keeping the unscoped reads in one file means they are one file to audit, and
+they are reachable only through `AdminService`, which is reachable only through
+`Auth("ADMIN")`.
+
+**Cost.** Cross-table reads that a scoped repository could have answered now
+live somewhere else, so "count categories" has two homes depending on whether it
+is one user's or everyone's. That is the point, and the file header says so.
+
+---
+
+## 27 · The last-admin check counts after the write, not before
+
+**Decision.** `AdminService.updateUser` applies a role change and *then* asks
+whether any admin is left, throwing to roll the transaction back if none is.
+
+**Why not before, which is how this is normally written.** Because before the
+write it is unreachable code that reads like a guard. `Auth("ADMIN")` means the
+actor holds the role; the self-demotion rule means the target is somebody else;
+so a demotion always starts from at least two admins and a "refuse when the
+count is one" check can never fire. It would have looked like protection, passed
+a test written to match it, and protected nothing.
+
+Counting afterwards states the invariant that is actually true — *this change
+must not leave zero admins* — which is a different question with a different
+answer.
+
+**What it catches.** Overlapping transactions, where two admins demote each
+other and the second to commit sees the role gone from both. And any future
+caller not behind `Auth("ADMIN")`: a script, a job, a support tool.
+
+**What it does not.** It is not a lock. At Read Committed a genuine tie can
+still slip through; closing that needs `SELECT … FOR UPDATE` over the admin rows
+or serializable isolation, and neither is worth its cost against a console with
+two operators. The rule that does the real work in the single-request case is
+the self-demotion refusal, which is why both exist.
+
+**Asserted in** `tests/unit/admin-service.test.ts`, where the two rules are
+checked differently on purpose: self-demotion asserts `setRole` was never
+called, and the last-admin rule asserts the method threw — because throwing is
+what rolls the write back.

@@ -92,7 +92,16 @@ not started.
 | **Lock a quarter** | Three locks behind one button. The model already allows it. |
 | **Recurring plans** | Copy a month's targets forward, or set a default that months inherit. |
 | **Multi-currency** | A currency column and a rate table. Everything assumes one currency today. |
-| **Admin screens** | `proxy.ts` and the role claim exist; `/admin/*` has no pages. |
+
+**Admin screens have shipped.** `/admin/dashboard` and `/admin/users`, over four
+`Auth("ADMIN")` endpoints. What is left on them is narrower than the original
+entry:
+
+| | Note |
+|---|---|
+| **An audit trail** | Role and verification changes are applied and not recorded. Who demoted whom, and when, is currently only in the database's current state. This is the first thing a second operator would ask for. |
+| **Suspending an account** | There is no `suspendedAt`, so the only lever is clearing verification, which is a verification control being used as a ban. A column and a migration. |
+| **Serialized role writes** | `assertAnAdminRemains` catches the sequential case and rolls back. Two admins demoting each other in overlapping transactions can still tie; closing it needs `SELECT … FOR UPDATE` or serializable isolation. |
 
 ---
 

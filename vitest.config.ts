@@ -44,6 +44,11 @@ export default defineConfig({
         "src/domain/helpers/**",
         "src/domain/services/**",
         "src/components/client/**",
+        // The shared primitives — page header, states, stat tile, segmented —
+        // live here rather than under `client/` because `admin/` renders them
+        // too, and a component named for one half of the app it serves is a
+        // dependency nobody reads twice before writing backwards.
+        "src/components/common/**",
       ],
     },
   },

@@ -12,3 +12,4 @@ export * as plansApi from "./plans";
 export * as actualsApi from "./actuals";
 export * as locksApi from "./locks";
 export * as reportApi from "./report";
+export * as adminApi from "./admin";

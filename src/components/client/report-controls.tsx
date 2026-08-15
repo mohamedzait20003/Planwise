@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { usePreferences } from "@/lib/stores/preferences";
 
-import { Segmented } from "@/components/client/segmented";
+import { Segmented } from "@/components/common/segmented";
 import { Label } from "@/components/ui/label";
 import {
   addMonths,

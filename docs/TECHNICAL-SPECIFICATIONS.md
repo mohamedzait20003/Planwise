@@ -44,6 +44,10 @@ Two prefixes, and the split is the point.
 
 - **`/api/auth/*`** and **`/api/client/*`** — browser endpoints. Session cookie,
   guarded by `Auth()`.
+- **`/api/admin/*`** — browser endpoints for operators. Same cookie, guarded by
+  `Auth("ADMIN")`, which answers **403** rather than 404: unlike a client route,
+  these are not scoped to the caller, so there is no row whose existence a
+  status code could leak.
 - **`/api/queues/*`** — machine-to-machine. No cookie; authorised by the queue
   callback signature.
 
@@ -103,7 +107,40 @@ message — the raw text can carry SQL, file paths or column names.
 | `GET` | `/api/client/report` | `?from=&to=&categoryId=` — 200 or 202 |
 | `GET` | `/api/client/report/runs` | `?limit=` — stored runs as summaries, newest first |
 | `GET` | `/api/client/report/export` | CSV, computed on demand |
+| `GET` | `/api/admin/overview` | platform counts, signups, queue health — **ADMIN** |
+| `GET` | `/api/admin/users` | `?query=&role=&verified=&page=&perPage=` — **ADMIN** |
+| `GET` `PATCH` | `/api/admin/users/[id]` | read one; change role or verification — **ADMIN** |
 | `POST` | `/api/queues/report` | queue consumer |
+
+### What the admin API deliberately cannot do
+
+There is no endpoint that returns another user's categories, targets, entries or
+report figures, and that is a design decision rather than a gap. The product's
+first requirement is that a user sees only their own data; an operator console
+is exactly where that is most convenient to break, so the boundary is drawn in
+the wire mapping.
+
+`GET /api/admin/users` answers with counts, states and timestamps:
+
+```jsonc
+{
+  "id": "…", "firstName": "…", "lastName": "…", "email": "…",
+  "role": "USER", "verified": true,
+  "providers": ["GOOGLE"], "hasPassword": false,
+  "createdAt": "…", "lastEntryAt": "…",
+  "footprint": { "categories": 2, "plans": 26, "actuals": 14, "lockedMonths": 0, "reportRuns": 1 }
+}
+```
+
+`footprint` answers "is this account in use". No amount appears anywhere in it.
+The narrowing happens in `toAdminUser`, which lists its fields out by hand — a
+column added to `User` therefore lands on the model and stops there, rather than
+arriving on an operator's screen because nobody remembered to exclude it.
+
+`PATCH` accepts `{ role?, verified? }` and refuses two things with **400**:
+changing your own role, and any change that would leave the platform with no
+admin at all. Both are refusals of a domain rule, not of authorization — the
+caller is an admin either way.
 
 ### The report contract
 

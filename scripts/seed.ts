@@ -2,7 +2,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient, Role } from "../generated/prisma/client";
 
 /**
  * The assignment's worked example, as a signed-in account.
@@ -29,6 +29,18 @@ const prisma = new PrismaClient({
 const DEMO_EMAIL = "demo@planwise.app";
 const DEMO_PASSWORD = "planwise-demo";
 
+/**
+ * A second account, so the admin console is reachable on a fresh database.
+ *
+ * It owns nothing. That is the point: an admin sees who is on the platform and
+ * what they have built, never what any of it was for, and an operator account
+ * with its own categories and spend would blur exactly the line the console is
+ * built around. Signing in as this one shows the console over the demo
+ * account's footprint, which is the thing worth looking at.
+ */
+const ADMIN_EMAIL = "admin@planwise.app";
+const ADMIN_PASSWORD = "planwise-admin";
+
 /** Matches `BCRYPT_ROUNDS` in AuthService — the app compares against this. */
 const BCRYPT_ROUNDS = 12;
 
@@ -49,6 +61,22 @@ async function main() {
       // Verified up front: sign-in refuses an unverified account, and there is
       // no inbox to collect the link from here.
       emailVerifiedAt: new Date(),
+    },
+  });
+
+  // `update` sets the role rather than staying empty like the demo upsert:
+  // re-seeding after somebody demoted this account should put the console back
+  // within reach, which is the whole reason it is in the seed.
+  await prisma.user.upsert({
+    where: { Email: ADMIN_EMAIL },
+    update: { Role: Role.ADMIN },
+    create: {
+      FName: "Ada",
+      LName: "Operator",
+      Email: ADMIN_EMAIL,
+      passwordHash: await bcrypt.hash(ADMIN_PASSWORD, BCRYPT_ROUNDS),
+      emailVerifiedAt: new Date(),
+      Role: Role.ADMIN,
     },
   });
 
@@ -135,6 +163,7 @@ async function main() {
   console.log(`Seeded ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
   console.log("  2 categories, 4 plans, 3 actuals (Marketing Feb omitted)");
   console.log("  2026-01 is locked — try editing it to see the API refuse");
+  console.log(`\nAdmin console: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}`);
   console.log("\nGenerate a report over 2026-01..2026-02 to see the brief's figures.");
 }
 

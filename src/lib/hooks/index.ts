@@ -12,3 +12,4 @@ export * from "./plans";
 export * from "./actuals";
 export * from "./locks";
 export * from "./report";
+export * from "./admin";

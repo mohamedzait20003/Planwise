@@ -48,7 +48,15 @@ place to get the UTC reading wrong instead of one per call site.
 `PlanWithCategoryModel` exists because the report needs the category name on
 every planned row and will not join per row. A subclass rather than an optional
 field: the name is either guaranteed by the query or absent by it, never
-sometimes-there.
+sometimes-there. `UserWithFootprintModel` follows the same pattern for the same
+reason — the counts come from the query that built it, and a subclass says so
+where an optional field would not. It restates its `@Model` exclusions rather
+than inheriting them, because `toDTO` reads that metadata off the subclass
+constructor and would otherwise serialize the password hash.
+
+The admin overview's shapes stay **plain types** in `models/adminModel.ts`, on
+the same rule: "how many users are verified" has no id and nothing to hydrate,
+so wrapping a `count` in a class would invent an entity that does not exist.
 
 Not every model exists to be serialized. `EmailVerificationModel` and
 `PasswordResetModel` never leave `TokenRepository` — they exist because expiry
@@ -136,12 +144,50 @@ transport failed.
 
 | | `proxy.ts` (Edge) | `Auth()` (Node) |
 |---|---|---|
-| Guards | pages under `/client`, `/admin` | every `/api/client` route |
+| Guards | pages under `/client`, `/admin` | every `/api/client` and `/api/admin` route |
 | On failure | redirect with `callbackUrl` | 401 or 403 JSON |
 | Why | a redirect is useless to `fetch` | hiding a button proves nothing |
 
 Both read the same JWT. The middleware is UX; the endpoint check is the
-enforcement.
+enforcement. `/api/admin/*` uses `Auth("ADMIN")`, which is the same step with a
+role list — so the console's protection is one argument, not a second mechanism
+that could disagree with the first.
+
+## The admin console
+
+Two screens — `/admin/dashboard` and `/admin/users` — over four endpoints. What
+makes it worth a section is the line it does **not** cross.
+
+**Counts, never amounts.** No admin endpoint returns another user's categories,
+targets, entries or report figures. Requirement 1.1 is that a user sees only
+their own data, and an operator screen is where that is most convenient to
+break, so the boundary is enforced in `toAdminUser` — which lists its fields by
+hand, so a column added to `User` lands on the model and stops there. What an
+operator gets is a footprint: how many categories, targets and entries exist,
+and when the last one landed. Enough to answer "is this account in use", and
+nothing that answers "what do they spend it on".
+
+**One repository is not scoped by `userId`.** Every other repository takes it as
+the first argument, which is what makes ownership a property of the query rather
+than of the caller's good intentions. Platform totals genuinely cannot be, so
+they live in `AdminRepository` alone rather than as `countAll()` methods beside
+the scoped ones — putting the unscoped reads in one auditable file instead of
+one autocomplete away from every method that enforces ownership.
+
+**Two rules stop the console locking everyone out**, and they refuse at
+different moments:
+
+| Rule | When | Why there |
+|---|---|---|
+| You cannot change your own role | before the write | demoting yourself removes the screen that would undo it |
+| A change must leave an admin standing | **after** the write, rolling back | checked before, it is unreachable code — an admin acting on a *different* admin always starts from two |
+
+The second is the interesting one. Written the usual way — count admins, refuse
+at one — it reads like a guard and can never fire, because `Auth("ADMIN")`
+guarantees the actor still holds the role afterwards. Counting after the write
+states the invariant that is actually true: *this change must not leave zero
+admins*. It catches overlapping transactions and any future caller not behind
+`Auth("ADMIN")`, and `tests/unit/admin-service.test.ts` asserts both rules.
 
 ## Report generation
 
@@ -234,6 +280,8 @@ Each product rule has exactly one home:
 | Category usable? | `CategoryService.requireWritable` |
 | CSV shape | `readHeader` + `parseImportRow` |
 | Category identity colour | `lib/utils/category-color.ts`, keyed on id |
+| Who may change a role | `AdminService.updateUser`, plus `assertAnAdminRemains` |
+| What an operator may see | `toAdminUser` in `domain/helpers/wire.ts` |
 
 The variance rule is the one duplication, and it is deliberate: the client
 formats without a round trip, the server computes what it stores. Both are

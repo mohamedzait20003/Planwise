@@ -118,12 +118,41 @@ went unnoticed. The migration was regenerated from the schema and named to match
 the one the database already had recorded, so it reconciles rather than
 conflicts. A seed script landed with it.
 
+### 11 · The admin console, and a footer worth having
+
+The `ADMIN` role, the `proxy.ts` guard and two nav links all existed and pointed
+at pages that did not — a role granting access to nothing. `/admin/dashboard`
+and `/admin/users` are what it now grants, over four `Auth("ADMIN")` endpoints
+with an `AdminService`, an `AdminRepository` for the platform-wide aggregates,
+and a `UserWithFootprintModel`.
+
+The design question was not layout, it was **what an operator is allowed to
+see**. The answer is counts, never amounts — reasoned through in
+[DECISION.md](DECISION.md) §25.
+
+**Where a defect was found in the design itself.** The first cut had the
+conventional last-admin guard: count the admins, refuse at one. Exercising it
+against the running API showed it could never fire — `Auth("ADMIN")` means the
+actor holds the role, so a demotion always starts from two. It looked like
+protection and protected nothing. Counting *after* the write instead, and
+rolling back, states an invariant that is actually true. §27 has the reasoning;
+the test asserts the two rules differently because they refuse at different
+moments.
+
+Also here: the five shared primitives — page header, states, stat tile, motion,
+segmented — moved from `components/client/` to `components/common/`, because
+`admin/` renders them and a component named for one half of the app it serves is
+a dependency read backwards. And the footer, which had been a logo and a
+copyright line, became three columns of links that resolve to real destinations.
+
 ## What is not done
 
 | | Why it matters | Effort |
 |---|---|---|
 | **No automated test touches Postgres** | Migrations, the ownership `WHERE` clauses and Prisma's query generation are verified by types and by hand, not by CI. | ~2h |
 | **No session revocation** | A password reset does not invalidate an existing session. | ~2h |
+| **No audit trail on role changes** | Who demoted whom, and when, is only in the current state of the row. The first thing a second operator asks for. | ~2h |
+| **`npm run seed` does not run** | `node scripts/seed.ts` cannot resolve the generated Prisma client — its internal imports are extensionless and raw Node ESM will not resolve them. Pre-dates the console; the fix is `importFileExtension` on the generator, which changes output for the whole app and wants verifying on its own. | ~1h |
 | **Production branch undecided** | `deploy.yml` triggers on `main`; the work is on `feat/landing-redesign`, so releases are manual. | ~0 |
 
 ## The honest status
@@ -137,13 +166,18 @@ that used to sit here, that nothing had ever reached Postgres, no longer holds.
 What is verified automatically:
 
 - typecheck, lint and production build pass
-- 153 unit tests, including the brief's exact figures through the real
-  aggregation, and lock enforcement on every write path
+- 206 unit and component tests, including the brief's exact figures through the
+  real aggregation, lock enforcement on every write path, and both admin guards
 - 20 end-to-end tests against a real browser and a real build
+
+The admin console was additionally exercised by hand against the live database
+before it was committed: the four endpoints, 401 unauthenticated and **403 for a
+signed-in non-admin on every one of them including the PATCH that would have
+granted the role**, the filter and paging bounds, and both pages in light and
+dark at 1440px and 375px.
 
 What is verified **by hand only**: everything that touches the database itself.
 The service-level rules are covered — variance, aggregation and lock enforcement
 all fail loudly if broken — but migrations, the ownership `WHERE` clauses and
 Prisma's own query generation are not, so a regression in ownership scoping would
-still turn nothing red. That gap and a seed script are the same piece of work,
-and it is the top of [ROADMAP.md](ROADMAP.md).
+still turn nothing red. That is the top of [ROADMAP.md](ROADMAP.md).

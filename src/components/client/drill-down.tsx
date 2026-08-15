@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ReceiptTextIcon, TriangleAlertIcon } from "lucide-react";
 
 import { Money, VarianceAmount, NotLogged } from "./variance";
-import { LoadingRows } from "./states";
+import { LoadingRows } from "@/components/common/states";
 import {
   Sheet,
   SheetContent,

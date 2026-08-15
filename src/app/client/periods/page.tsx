@@ -4,9 +4,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeftIcon, ChevronRightIcon, LockIcon } from "lucide-react";
 
-import { PageHeader, Panel } from "@/components/client/page-header";
-import { Rise, Stagger } from "@/components/client/motion";
-import { ErrorState, LoadingRows } from "@/components/client/states";
+import { PageHeader, Panel } from "@/components/common/page-header";
+import { Rise, Stagger } from "@/components/common/motion";
+import { ErrorState, LoadingRows } from "@/components/common/states";
 import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import { PeriodGrid } from "@/components/client/period-grid";
 import { Button } from "@/components/ui/button";

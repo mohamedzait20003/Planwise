@@ -7,13 +7,18 @@ import type {
   PlanModel,
 } from "../models/budgetModel";
 import type { ReportRunModel } from "../models/reportModel";
+import type { UserWithFootprintModel } from "../models/userModel";
+import type { PlatformOverview } from "../models/adminModel";
 import type {
   Actual,
+  AdminOverview,
+  AdminUser,
   Category,
   PeriodLock,
   Plan,
   ReportResponse,
   ReportRunSummary,
+  Role,
 } from "@/lib/api/types";
 import type { ReportStatus } from "../../../generated/prisma/client";
 
@@ -148,3 +153,53 @@ export type ReportPending = {
   runId: string;
   error?: string | null;
 };
+
+/* ------------------------------------------------------------------- admin */
+
+/**
+ * A user as the admin console is allowed to see them.
+ *
+ * The narrowing this function performs is the security boundary, not a
+ * convenience: `UserWithFootprintModel` still carries `passwordHash`, because a
+ * model is the row as the server understands it. Listing the fields out by hand
+ * is what stops a column added to `User` next month from arriving on an admin
+ * screen because nobody remembered to exclude it.
+ */
+export function toAdminUser(model: UserWithFootprintModel): AdminUser {
+  return {
+    id: model.Id,
+    firstName: model.FName,
+    lastName: model.LName,
+    email: model.Email,
+    avatarUrl: model.AvatarUrl,
+    role: model.Role as Role,
+    // The stamp itself is not published — whether it is set is the whole of
+    // what the console asks.
+    verified: model.isVerified,
+    providers: model.providers,
+    hasPassword: model.hasPassword,
+    createdAt: model.createdAt.toISOString(),
+    lastEntryAt: model.lastEntryAt?.toISOString() ?? null,
+    footprint: model.footprint,
+  };
+}
+
+export function toAdminOverview(
+  overview: PlatformOverview & { activeUsers: number }
+): AdminOverview {
+  return {
+    users: overview.users,
+    activeUsers: overview.activeUsers,
+    signups: overview.signups,
+    workspace: overview.workspace,
+    queue: overview.queue,
+    failures: overview.failures.map((failure) => ({
+      id: failure.id,
+      userEmail: failure.userEmail,
+      from: failure.from,
+      to: failure.to,
+      error: failure.error,
+      requestedAt: failure.requestedAt.toISOString(),
+    })),
+  };
+}

@@ -12,8 +12,8 @@ import {
   WalletIcon,
 } from "lucide-react";
 
-import { PageHeader, Panel } from "@/components/client/page-header";
-import { StatTile, CountUpValue } from "@/components/client/stat-tile";
+import { PageHeader, Panel } from "@/components/common/page-header";
+import { StatTile, CountUpValue } from "@/components/common/stat-tile";
 import { VarianceChart } from "@/components/client/variance-chart";
 import { VarianceHero } from "@/components/client/variance-hero";
 import { ReportControls } from "@/components/client/report-controls";
@@ -21,13 +21,13 @@ import { ReportHistory } from "@/components/client/report-history";
 import { DrillDown } from "@/components/client/drill-down";
 import { useCurrentMonth, usePreferences } from "@/lib/stores/preferences";
 import { LockPill } from "@/components/client/lock-pill";
-import { Rise, Stagger, rowMotion } from "@/components/client/motion";
+import { Rise, Stagger, rowMotion } from "@/components/common/motion";
 import {
   EmptyState,
   ErrorState,
   GeneratingState,
   LoadingRows,
-} from "@/components/client/states";
+} from "@/components/common/states";
 import { ApiError } from "@/lib/api";
 import {
   Money,

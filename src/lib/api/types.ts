@@ -33,6 +33,92 @@ export type UserProfile = {
   AvatarUrl: string | null;
 };
 
+/* ------------------------------------------------------------------- admin */
+
+export type Role = "USER" | "ADMIN";
+
+/**
+ * A user as the admin console sees them.
+ *
+ * Counts, states and timestamps. No amount from anyone's ledger appears here,
+ * and that is a deliberate boundary rather than an omission — see
+ * `UserFootprint` in the domain models for the reasoning.
+ *
+ * camelCase throughout, unlike `UserProfile` above, which mirrors the column
+ * names because it is handed straight out of the model's `profile` getter.
+ */
+export type AdminUser = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+  role: Role;
+  verified: boolean;
+  /** Linked federated providers. Empty means the account is password-only. */
+  providers: string[];
+  hasPassword: boolean;
+  createdAt: string;
+  /** When they last logged an entry; null if they never have. */
+  lastEntryAt: string | null;
+  footprint: {
+    categories: number;
+    plans: number;
+    actuals: number;
+    lockedMonths: number;
+    reportRuns: number;
+  };
+};
+
+export type AdminUserQuery = {
+  query?: string;
+  role?: Role;
+  verified?: boolean;
+  page?: number;
+  perPage?: number;
+};
+
+export type UpdateAdminUserInput = { role?: Role; verified?: boolean };
+
+/** A page of results, with the total the pager needs to size itself. */
+export type Paged<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  perPage: number;
+};
+
+/** One bar of the signups chart. `month` is "YYYY-MM". */
+export type SignupPoint = { month: string; count: number };
+
+export type AdminOverview = {
+  users: {
+    total: number;
+    verified: number;
+    unverified: number;
+    admins: number;
+    newThisMonth: number;
+  };
+  /** Distinct users who logged an entry in the last 30 days. */
+  activeUsers: number;
+  signups: SignupPoint[];
+  workspace: {
+    categories: number;
+    plans: number;
+    actuals: number;
+    lockedMonths: number;
+  };
+  queue: { pending: number; processing: number; ready: number; failed: number };
+  failures: {
+    id: string;
+    userEmail: string;
+    from: string;
+    to: string;
+    error: string | null;
+    requestedAt: string;
+  }[];
+};
+
 /* -------------------------------------------------------------- categories */
 
 export type Category = {

@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
-import { CountUpValue } from "./stat-tile";
+import { CountUpValue } from "@/components/common/stat-tile";
 import { VarianceChip } from "./variance";
 import { formatCurrency, formatSignedCurrency } from "@/lib/utils/variance";
 import { cn } from "@/lib/utils/utils";

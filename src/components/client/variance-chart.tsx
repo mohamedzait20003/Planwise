@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils/utils";
 import { Button } from "@/components/ui/button";
 import type { ReportMonthTotal } from "@/lib/api/types";
-import { Segmented } from "@/components/client/segmented";
+import { Segmented } from "@/components/common/segmented";
 import { TrendChart, trendSummary } from "@/components/charts/trend-chart";
 import { VarianceBars, varianceSummary } from "@/components/charts/variance-bars";
 import { useChartSize } from "@/lib/utils/use-chart-size";

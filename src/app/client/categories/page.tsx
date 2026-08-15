@@ -11,11 +11,11 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { PageHeader, Panel } from "@/components/client/page-header";
-import { Rise, Stagger } from "@/components/client/motion";
-import { Segmented } from "@/components/client/segmented";
+import { PageHeader, Panel } from "@/components/common/page-header";
+import { Rise, Stagger } from "@/components/common/motion";
+import { Segmented } from "@/components/common/segmented";
 import { CategoryCard } from "@/components/client/category-card";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
+import { EmptyState, ErrorState, LoadingRows } from "@/components/common/states";
 import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

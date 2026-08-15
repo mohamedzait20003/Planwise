@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { VarianceAmount } from "./variance";
-import { LoadingRows } from "./states";
+import { LoadingRows } from "@/components/common/states";
 import type { Category, ReportRunSummary } from "@/lib/api/types";
 import { categorySolid } from "@/lib/utils/category-color";
 import { currentMonth, monthShort, monthTerse, monthsBetween } from "@/lib/utils/month";

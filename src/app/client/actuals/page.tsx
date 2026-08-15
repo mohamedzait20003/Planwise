@@ -16,12 +16,12 @@ import {
   UploadIcon,
 } from "lucide-react";
 
-import { PageHeader, Panel } from "@/components/client/page-header";
+import { PageHeader, Panel } from "@/components/common/page-header";
 import { MonthField } from "@/components/client/month-field";
 import { LockPill, LockedNotice } from "@/components/client/lock-pill";
-import { Rise, Stagger, rowMotion } from "@/components/client/motion";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
-import { CountUpValue } from "@/components/client/stat-tile";
+import { Rise, Stagger, rowMotion } from "@/components/common/motion";
+import { EmptyState, ErrorState, LoadingRows } from "@/components/common/states";
+import { CountUpValue } from "@/components/common/stat-tile";
 import { CategoryBreakdown } from "@/components/client/category-breakdown";
 import { MoneyInput } from "@/components/client/money-input";
 import { FormMessage, errorMessage } from "@/components/auth/form-message";

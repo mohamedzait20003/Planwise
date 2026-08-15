@@ -233,6 +233,56 @@ Future months are lockable on purpose — freezing a signed-off budget is
 legitimate, and a list stopping at today would make it impossible. They are
 dimmed rather than blocked: closing one early is unusual, not wrong.
 
+### Console · `/admin/dashboard`
+
+For accounts with the `ADMIN` role. `proxy.ts` redirects everyone else, and the
+nav swaps the workspace links for the console's two.
+
+Four tiles lead — users, verified, active in the last 30 days, admins — then
+signups per month over the last year, the platform's totals, and the report
+queue by status with any failures listed underneath.
+
+**The queue panel is the reason to keep the page open**, so it carries the
+failures verbatim: the stored error string, the range that produced it, and
+whose account it belongs to. Paraphrasing the one line that says what broke is
+how a queue failure becomes unreproducible.
+
+Signups are drawn as bars because the quantity is a count per discrete bucket —
+there is nothing continuous between March and April for a line to cross. Months
+with no signups are drawn as empty bars rather than skipped, for the same reason
+the report walks every month in its range: an axis that omits the quiet months
+draws a narrower year with no gap in it.
+
+### Users · `/admin/users`
+
+Every account, newest first, with search, a role filter, a verification filter
+and paging. The search debounces, so typing issues one request rather than one
+per character, and the previous page stays on screen while the next one loads.
+
+Below `md` the table becomes cards. Six columns on a 375px phone would mean
+reading every row by dragging it sideways, with the column that matters always
+off-screen.
+
+**Counts, never amounts.** Each row shows how many categories, targets, entries
+and locked months an account holds, and when its owner last logged something. It
+shows no figure from anybody's ledger, and there is no endpoint that would
+return one. A user's data is theirs; the console answers "is this account in
+use", not "what do they spend it on".
+
+**Two things can be changed, and both are in the detail panel** rather than a
+row menu — a demotion needs a confirm step and a sentence saying what it costs,
+which is not a dropdown any more.
+
+- **Role.** Promoting takes one click; demoting asks first. Granting access is
+  undone by revoking it, and revoking the wrong one may not be undoable.
+- **Email verification.** Marking verified is the support action for somebody
+  who never got the email. Clearing it asks first, because it stops the owner
+  signing in until they complete the flow again.
+
+Opening your own account replaces the role control with a sentence explaining
+that changing your own role is refused. The API refuses it too — the message is
+so an operator does not go looking for a button that is deliberately absent.
+
 ## Rules a user can observe
 
 ### Variance

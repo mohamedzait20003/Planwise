@@ -24,6 +24,13 @@ proves only that a caller is *someone*. `findFirst({ where: { id, userId } })`
 rather than `findUnique({ where: { id } })` is what makes a guessed id return
 nothing.
 
+**Requirement 1.3 survives the admin console**, which is the one place it could
+have quietly stopped being true. `/admin/*` reads users, counts and queue state;
+no endpoint there returns another account's categories, targets, entries or
+report figures. An operator can see that an account holds 412 entries and when
+the last one landed, and cannot see what any of them were for. See
+[PRODUCT-SPECIFICATIONS](PRODUCT-SPECIFICATIONS.md#users--adminusers).
+
 ## 2. Categories
 
 | # | Requirement | Status | Where |
@@ -110,8 +117,8 @@ wide lightness gap and validated in both themes.
 
 | Goal | Status | Note |
 |---|---|---|
-| Drill-down from a report cell | ⛔ | the data supports it; no UI |
-| Fiscal year selector | ⛔ | calendar year only |
+| Drill-down from a report cell | ✅ | clicking a category opens the entries behind the cell |
+| Fiscal year selector | ✅ | start-month selector; every preset derives from it |
 | Export report as CSV | ✅ | `GET /api/client/report/export` |
 
 ## Technical guidelines
@@ -119,23 +126,35 @@ wide lightness gap and validated in both themes.
 | Requirement | Status | Note |
 |---|---|---|
 | Stack — free choice | ✅ | Next.js 16, Postgres, Prisma |
-| **Deployment — required, live URL** | ⛔ | **the outstanding deliverable** |
-| Tests for aggregation, variance, lock enforcement | 🟡 | aggregation and variance covered; lock enforcement needs a database |
+| **Deployment — required, live URL** | ✅ | **https://planwise-rouge.vercel.app** |
+| Tests for aggregation, variance, lock enforcement | ✅ | all three, without a database — services take their repositories as parameters |
 | README notes indexing and query at scale | ✅ | `docs/DATA-MODEL.md` |
-| Migrations and seed scripts | 🟡 | migrations exist; no seed script |
+| Migrations and seed scripts | ✅ | migrations plus an idempotent `npm run seed` |
+
+## Beyond the brief
+
+Not asked for, and built because leaving them out would have made something else
+worse.
+
+| | Why |
+|---|---|
+| Email verification, password reset, Google OAuth | An unverified-email flow changes the sign-in contract; retrofitting it would have meant rewriting the form |
+| Stored, queued reports | Cost scales with the range, and a ten-year query should not hold an HTTP connection |
+| Soft-deleted actuals | A locked month has to be able to account for what it contained |
+| **Admin console** | The `ADMIN` role and the `proxy.ts` guard already existed and pointed at pages that did not. A role that grants access to nothing is a claim the app makes and cannot honour |
 
 ---
 
 ## Summary
 
-Every functional requirement is implemented. Three gaps remain, in order of
-weight:
+Every functional requirement and all three stretch goals are implemented, and
+the app is deployed.
 
-1. **Not deployed.** The brief requires a live URL. CI/CD is written and the
-   build is verified; the project has not been linked to Vercel.
-2. **No seed script.** The brief lists it under deliverables, and it is also
-   what would let anyone see the screens with data in them.
-3. **Lock enforcement is untested.** It is the product rule most likely to be
-   probed, and the only one whose test needs a real database.
+One gap remains, and it is a testing gap rather than a functional one:
+**no automated test opens a Postgres connection.** Migrations, the ownership
+`WHERE` clauses and Prisma's own query generation are verified by types and by
+hand. The rules the brief grades — variance, aggregation, lock enforcement —
+are each asserted directly against stubs, which is why they need no database;
+ownership is the one that would.
 
 See [ROADMAP.md](ROADMAP.md).

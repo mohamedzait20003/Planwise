@@ -90,6 +90,91 @@ export class UserModel {
     }
 }
 
+/**
+ * What a user has built, as counts.
+ *
+ * Counts and never amounts, deliberately. The product's first promise is that a
+ * user sees only their own data, and an admin screen showing someone's spend
+ * would break it for the sake of a number nobody needs to operate the service.
+ * How many actuals exist answers "is this account in use"; what they add up to
+ * answers a question an operator was never asked.
+ */
+export type UserFootprint = {
+    categories: number;
+    plans: number;
+    actuals: number;
+    lockedMonths: number;
+    reportRuns: number;
+};
+
+/**
+ * A user with their workspace footprint attached.
+ *
+ * A subclass rather than optional fields on `UserModel`, for the same reason
+ * `PlanWithCategoryModel` is one: the counts are either guaranteed by the query
+ * that built it or absent by it, never sometimes-there.
+ *
+ * The `@Model` options are restated rather than inherited — `toDTO` reads the
+ * metadata off `instance.constructor`, so a subclass that did not redeclare
+ * `exclude` would serialize the password hash.
+ */
+@Model<UserWithFootprintModel>({
+    name: "User",
+    exclude: ["passwordHash", "dataVersion"],
+})
+export class UserWithFootprintModel extends UserModel {
+    readonly footprint: UserFootprint;
+
+    /** Federated identities linked to this account; empty means password-only. */
+    readonly providers: AuthProvider[];
+
+    /**
+     * When this user last logged an actual.
+     *
+     * Named for what it measures rather than "lastActiveAt". It is the most
+     * recent entry, which is not the same as the last sign-in — there is no
+     * session table to read that from, and a label promising it would be a
+     * claim the data cannot support.
+     */
+    readonly lastEntryAt: Date | null;
+
+    constructor(
+        row: PrismaUser & {
+            _count: {
+                categories: number;
+                plans: number;
+                actuals: number;
+                periodLocks: number;
+                reportRuns: number;
+            };
+            oauthAccounts: { provider: AuthProvider }[];
+        },
+        lastEntryAt: Date | null = null
+    ) {
+        super(row);
+
+        this.footprint = {
+            categories: row._count.categories,
+            plans: row._count.plans,
+            actuals: row._count.actuals,
+            lockedMonths: row._count.periodLocks,
+            reportRuns: row._count.reportRuns,
+        };
+
+        this.providers = row.oauthAccounts.map((account) => account.provider);
+        this.lastEntryAt = lastEntryAt;
+    }
+
+    /** True when the account can only be reached through a federated provider. */
+    get isOAuthOnly(): boolean {
+        return !this.hasPassword && this.providers.length > 0;
+    }
+
+    toJSON() {
+        return toDTO(this);
+    }
+}
+
 /** A linked federated identity. */
 @Model<OAuthAccountModel>({ name: "OAuthAccount" })
 export class OAuthAccountModel {

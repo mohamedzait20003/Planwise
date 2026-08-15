@@ -12,12 +12,12 @@ import {
   Undo2Icon,
 } from "lucide-react";
 
-import { PageHeader, Panel } from "@/components/client/page-header";
+import { PageHeader, Panel } from "@/components/common/page-header";
 import { MonthField } from "@/components/client/month-field";
 import { LockPill, LockedNotice } from "@/components/client/lock-pill";
-import { Rise, Stagger } from "@/components/client/motion";
-import { EmptyState, ErrorState, LoadingRows } from "@/components/client/states";
-import { CountUpValue } from "@/components/client/stat-tile";
+import { Rise, Stagger } from "@/components/common/motion";
+import { EmptyState, ErrorState, LoadingRows } from "@/components/common/states";
+import { CountUpValue } from "@/components/common/stat-tile";
 import { MoneyInput } from "@/components/client/money-input";
 import { FormMessage, errorMessage } from "@/components/auth/form-message";
 import { Button } from "@/components/ui/button";
