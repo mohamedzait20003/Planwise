@@ -18,6 +18,8 @@ enum Role {
   ADMIN
 }
 
+/// Federated identity providers. Credentials sign-in is not listed: it is the
+/// absence of an OAuthAccount plus a non-null passwordHash.
 enum AuthProvider {
   GOOGLE
 }
