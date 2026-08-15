@@ -562,3 +562,68 @@ the self-demotion refusal, which is why both exist.
 checked differently on purpose: self-demotion asserts `setRole` was never
 called, and the last-admin rule asserts the method threw — because throwing is
 what rolls the write back.
+
+---
+
+## 28 · Seeding data and granting the console are two commands
+
+**Decision.** `npm run seed` loads the brief's worked example and creates no
+admin. `npm run seed:admin` grants the console and creates nothing else.
+
+**Why.** They are different acts with different blast radii. One writes sample
+rows into an account nobody minds; the other hands somebody the run of every
+account on the platform. Bundled, every environment that wanted the demo
+figures — a shared staging box, a reviewer's clone, CI — also got an operator
+account whose password is published in the README. Splitting them makes granting
+access something a person has to ask for by name.
+
+It also matches how the two are actually used. Sample data is re-seeded freely
+while developing; access is granted once and then left alone.
+
+**`ADMIN_EMAIL` and `ADMIN_PASSWORD` override the defaults**, because the
+defaults are in a public README and a password in a public README is a password
+everybody has. The script says so on stdout when it is using them.
+
+**An existing email is promoted, never re-passworded.** The common case is a
+colleague who already signed up, and `update` carrying a password would silently
+overwrite their credentials with this script's defaults — an account takeover
+performed by a convenience feature. So `update` carries the role and nothing
+else, which also makes this the documented way back in if the last admin is ever
+demoted.
+
+**Cost.** Two commands to remember instead of one, and a fresh clone that runs
+only the first one reaches a console it cannot enter. The README lists them
+together and the main seed's last line points at the other, which is the cheapest
+version of that reminder.
+
+---
+
+## 29 · The generated Prisma client emits `.ts` on its own imports
+
+**Decision.** `importFileExtension = "ts"` on the `prisma-client` generator,
+`.ts` on the seed scripts' import of it, and `allowImportingTsExtensions` in
+`tsconfig.json`.
+
+**Why.** Without it the seeds could not run — and had never run. The generated
+client's internal imports (`./enums`, `./internal/class`) were extensionless.
+Next resolves that through Turbopack and `tsc` resolves it through
+`moduleResolution: "bundler"`, so nothing in the normal workflow noticed. But
+`prisma.config.ts` runs the seed as bare `node scripts/seed.ts`, and raw Node
+ESM resolves specifiers literally: it threw `ERR_MODULE_NOT_FOUND` on `./enums`
+before reaching a query.
+
+The failure was invisible for exactly the reason it was worth fixing. Typecheck,
+lint, build and the whole test suite all passed — none of them runs the seed —
+while the README advertised it as the fastest way to see the app working.
+
+**Why not run the seed through a bundler instead.** `tsx` or `ts-node` would
+have worked and is one more dependency plus a second module resolver in the
+project. Node 24 already strips types natively, which is why
+`prisma.config.ts` invokes plain `node`; the only thing missing was that Node
+wants the extension spelled out. Spelling it out is smaller than adding a
+toolchain to avoid spelling it out.
+
+**Cost.** The generated output changes app-wide, and `allowImportingTsExtensions`
+permits `.ts` specifiers anywhere in the project — a style the rest of the code
+does not use and should not start using. Both seeds, typecheck, lint, the build
+and the full suite were run against the change.

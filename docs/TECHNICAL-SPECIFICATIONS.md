@@ -34,6 +34,7 @@ Stack, contracts, environment, conventions.
 | `GOOGLE_CLIENT_ID` / `_SECRET` | no | Google sign-in; button fails on click without them |
 | `EMAIL_USER` / `EMAIL_PASSWORD` / `MAIL_FROM` | no | SMTP; unset logs mail instead of sending |
 | `REPORTS_INLINE` | no | `"1"` computes reports on the request instead of queueing |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_FIRST_NAME` / `ADMIN_LAST_NAME` | no | Read by `npm run seed:admin` only; the app never looks at them |
 
 `NEXTAUTH_URL` starting `https://` switches next-auth to the `__Secure-` cookie
 prefix. Pointing it at `http://` in production ships sessions over plaintext.
@@ -226,6 +227,7 @@ prisma/
   migrations/                   generated; `migrate deploy` applies them
 scripts/
   seed.ts                       the brief's worked example, as a demo account
+  seed-admin.ts                 grants the console; separate on purpose
 tests/{unit,e2e}/
 ```
 

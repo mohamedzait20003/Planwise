@@ -145,6 +145,30 @@ segmented — moved from `components/client/` to `components/common/`, because
 a dependency read backwards. And the footer, which had been a logo and a
 copyright line, became three columns of links that resolve to real destinations.
 
+### 12 · Two seeds, and the reason neither had ever run
+
+Granting the console is now `npm run seed:admin`, separate from `npm run seed`.
+Loading sample data and handing somebody the run of every account are different
+acts with different blast radii; bundled, every environment that wanted the
+brief's figures also got an operator account with a password published in the
+README. The admin seed takes `ADMIN_EMAIL` / `ADMIN_PASSWORD`, and **promotes an
+existing email rather than re-passwording it** — the common case is a colleague
+who already signed up, and overwriting their password from a script's defaults
+would be a silent account takeover.
+
+**Where a fourth defect was found.** Splitting the script meant running it, and
+it turned out `npm run seed` had *never* run — not since it was written. `node
+scripts/seed.ts` could not resolve the generated Prisma client: its internal
+imports were extensionless, which a bundler resolves and raw Node ESM does not,
+so it died on `./enums` with `ERR_MODULE_NOT_FOUND` before reaching a query. It
+had been documented in the README as the fastest way to see the app working.
+
+The fix is three coordinated changes — `importFileExtension = "ts"` on the
+generator so the client's own imports carry the extension, the same extension on
+the two seed scripts' import of it, and `allowImportingTsExtensions` so `tsc`
+accepts that. Verified by running both seeds against the live database, twice
+each for idempotency, plus typecheck, build and the full suite.
+
 ## What is not done
 
 | | Why it matters | Effort |
@@ -152,7 +176,6 @@ copyright line, became three columns of links that resolve to real destinations.
 | **No automated test touches Postgres** | Migrations, the ownership `WHERE` clauses and Prisma's query generation are verified by types and by hand, not by CI. | ~2h |
 | **No session revocation** | A password reset does not invalidate an existing session. | ~2h |
 | **No audit trail on role changes** | Who demoted whom, and when, is only in the current state of the row. The first thing a second operator asks for. | ~2h |
-| **`npm run seed` does not run** | `node scripts/seed.ts` cannot resolve the generated Prisma client — its internal imports are extensionless and raw Node ESM will not resolve them. Pre-dates the console; the fix is `importFileExtension` on the generator, which changes output for the whole app and wants verifying on its own. | ~1h |
 | **Production branch undecided** | `deploy.yml` triggers on `main`; the work is on `feat/landing-redesign`, so releases are manual. | ~0 |
 
 ## The honest status

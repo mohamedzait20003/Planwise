@@ -27,16 +27,15 @@ openssl rand -base64 32     # a value for NEXTAUTH_SECRET
 
 npx prisma migrate deploy   # create the schema
 npm run seed                # optional — the brief's worked example
+npm run seed:admin          # optional — grants the admin console
 npm run dev                 # http://localhost:3000
 ```
 
 **The seed is the fastest way to see the app working.** It creates a verified
-demo account holding the assignment's own figures, and an operator account for
-the admin console:
+demo account holding the assignment's own figures:
 
 ```
-demo@planwise.app  / planwise-demo     workspace
-admin@planwise.app / planwise-admin    admin console
+demo@planwise.app / planwise-demo
 ```
 
 Two categories, four plans, three actuals — with **Marketing February
@@ -45,13 +44,34 @@ for. `2026-01` is locked, so the read-only path and the API's refusal are
 visible without setting anything up. Generate a report over `2026-01 … 2026-02`
 and the four rows match the brief's table exactly.
 
-The admin account deliberately owns nothing. Signing in as it shows the console
-over the demo account's footprint, which is the thing worth looking at — and an
-operator account with its own spend would blur the line the console is built
-around.
-
 It is idempotent: everything is keyed on something stable, so running it twice
 changes nothing.
+
+### The admin console is a separate seed
+
+`npm run seed` creates **no admin**. Loading sample data and handing somebody the
+run of every account on the platform are different acts, so they are different
+commands — bundling them would mean every environment that wanted the demo
+figures also got an operator account with a password published in this file.
+
+```bash
+npm run seed:admin                       # admin@planwise.app / planwise-admin-mzaitoun
+ADMIN_EMAIL=me@example.com ADMIN_PASSWORD='…' npm run seed:admin
+```
+
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` for anything that is not a throwaway
+database — the defaults are written down here, and a password in a README is a
+password everybody has.
+
+**An email that already exists is promoted, never re-passworded.** That is the
+common case (a colleague who has already signed up), and overwriting their
+password from this script's defaults would be a silent account takeover. It is
+also the documented way back in if the last admin ever gets demoted.
+
+The seeded operator deliberately owns nothing. Signing in as it shows the
+console over the demo account's footprint, which is the thing worth looking at —
+an operator account with its own spend would blur the line the console is built
+around.
 
 Every variable is documented inline in [`.env.example`](.env.example). Only two
 are required to boot: `DATABASE_URL` and `NEXTAUTH_SECRET`.
@@ -77,6 +97,7 @@ npm test               # vitest — 206 tests (unit + component)
 npm run test:e2e       # playwright — 20 end-to-end tests
 npm run migrate:deploy # apply migrations
 npm run seed           # load the brief's sample data
+npm run seed:admin     # grant the admin console (ADMIN_EMAIL / ADMIN_PASSWORD)
 ```
 
 ## Running the report queue
@@ -320,13 +341,13 @@ Fuller reasoning for each significant choice is in
 7. **Index review at scale** — see
    [docs/DATA-MODEL.md](docs/DATA-MODEL.md#performance-at-scale).
 
-**One known bug, pre-dating this work:** `npm run seed` fails with
-`ERR_MODULE_NOT_FOUND`. `node scripts/seed.ts` cannot resolve the generated
-Prisma client, whose internal imports are extensionless — fine under a bundler,
-not under raw Node ESM. The fix is `importFileExtension` on the `prisma-client`
-generator, which changes the generated output for the whole app and wants
-verifying on its own rather than as a side effect. The seed's *contents* are
-current, including the admin account above.
+**Fixed along the way:** `npm run seed` had never run. `node scripts/seed.ts`
+could not resolve the generated Prisma client, whose internal imports were
+extensionless — which a bundler resolves and raw Node ESM does not, so it died
+on `./enums` with `ERR_MODULE_NOT_FOUND` before reaching a query. The generator
+now emits `importFileExtension = "ts"`, the two seed scripts name the extension
+on their own import, and `allowImportingTsExtensions` lets `tsc` accept that.
+Both seeds run.
 
 ---
 

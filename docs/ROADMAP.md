@@ -12,7 +12,18 @@ Ordered by what unblocks the most, not by size.
 including the deliberately missing Marketing actual for February and one locked
 month. Idempotent, so a half-loaded database can be re-seeded safely.
 
+`npm run seed:admin` is separate, and grants the admin console. Loading sample
+data and handing out the run of every account are different acts, so bundling
+them would have meant every environment wanting the demo figures also got an
+operator account with a published password.
+
 It also unblocks the database-backed tests below, which needed a fixture.
+
+**Both had a latent defect until recently: neither could run.** The generated
+Prisma client's internal imports were extensionless, which a bundler resolves
+and raw Node ESM does not, so `node scripts/seed.ts` died with
+`ERR_MODULE_NOT_FOUND` before reaching a query. `importFileExtension = "ts"` on
+the generator fixes it.
 
 ### 2 · ~~Deploy~~ — done, with one thread left
 

@@ -129,7 +129,7 @@ wide lightness gap and validated in both themes.
 | **Deployment — required, live URL** | ✅ | **https://planwise-rouge.vercel.app** |
 | Tests for aggregation, variance, lock enforcement | ✅ | all three, without a database — services take their repositories as parameters |
 | README notes indexing and query at scale | ✅ | `docs/DATA-MODEL.md` |
-| Migrations and seed scripts | ✅ | migrations plus an idempotent `npm run seed` |
+| Migrations and seed scripts | ✅ | migrations, plus idempotent `npm run seed` and `npm run seed:admin` |
 
 ## Beyond the brief
 

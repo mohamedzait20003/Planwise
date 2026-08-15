@@ -16,6 +16,7 @@
     "test:e2e:ui": "playwright test --ui",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "prisma db seed",
+    "seed:admin": "node scripts/seed-admin.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
